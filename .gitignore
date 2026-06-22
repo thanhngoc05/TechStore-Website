@@ -1,0 +1,58 @@
+# Secrets and environment variables
+
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+.flaskenv
+
+# Python cache
+
+**pycache**/
+*.py[cod]
+*$py.class
+
+# Python virtual environments
+
+.venv/
+venv/
+env/
+ENV/
+
+# Local databases and application data
+
+instance/
+backend/instance/
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated email and log files
+
+*.eml
+*.log
+
+# Local tools and AI configuration
+
+backend/ngrok.exe
+.sixth/
+
+# Editors
+
+.vscode/
+.idea/
+
+# Operating system
+
+.DS_Store
+Thumbs.db
+
+# Test and tooling cache
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
