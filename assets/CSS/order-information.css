@@ -1,0 +1,303 @@
+/* 1. LAYOUT CHUNG */
+.order-flow-container {
+  background: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 2. STEPPER HEADER */
+.stepper-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff0f0;
+  padding: 15px;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  gap: 20px;
+}
+.steps {
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  gap: 80px;
+}
+.step-item {
+  color: #999;
+  font-size: 13px;
+  font-weight: bold;
+}
+.step-item i {
+  display: block;
+  width: 35px;
+  height: 35px;
+  line-height: 35px;
+  background: #ccc;
+  color: #fff;
+  border-radius: 50%;
+  margin: 0 auto 5px;
+  font-size: 16px;
+}
+.step-item.active {
+  color: #000;
+}
+.step-item.active i {
+  background: #ff0000;
+}
+
+/* 3. FORM NHẬP LIỆU */
+.form-section {
+  display: none;
+}
+.form-section.active {
+  display: block;
+}
+.form-section h3 {
+  font-size: 15px;
+  margin: 20px 0 10px;
+}
+
+.input-group-row {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+.input-group-row input,
+select.form-control {
+  flex: 1;
+  min-width: 200px;
+  padding: 10px;
+  border: none;
+  border-bottom: 1px solid #ddd;
+  outline: none;
+  background: #fff;
+}
+.address-detail {
+  background: #f1f1f1;
+  padding: 15px;
+  border-radius: 5px;
+}
+.address-detail input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* 4. THANH TOÁN & TỔNG KẾT */
+.payment-method,
+.success-msg {
+  text-align: center;
+  padding: 30px 0;
+}
+.order-summary {
+  border: 1px solid #eee;
+  padding: 15px;
+  margin: 20px auto;
+  max-width: 400px;
+  text-align: left;
+  border-radius: 10px;
+  background: #fafafa;
+}
+.summary-item {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+}
+.summary-info p {
+  margin: 5px 0;
+  font-size: 14px;
+}
+.price-red {
+  color: #ff0000;
+  font-weight: bold;
+}
+
+/* 4b. MoMo simulated payment */
+.momo-payment-box {
+  margin: 0 auto 14px;
+  max-width: 420px;
+  padding: 14px;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  background: #fafafa;
+}
+.momo-qr-link {
+  display: inline-block;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+.momo-qr-link canvas {
+  display: block;
+}
+.momo-pay-info {
+  margin-top: 10px;
+  font-size: 13px;
+  color: #333;
+  line-height: 1.6;
+}
+.momo-pay-status {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #666;
+}
+.pay-status-success {
+  color: #28a745;
+  font-style: italic;
+  font-weight: 700;
+}
+
+/* 5. NÚT BẤM */
+.order-footer-btns {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30px;
+}
+.btn-order {
+  padding: 12px 35px;
+  border-radius: 8px;
+  border: none;
+  font-weight: bold;
+  cursor: pointer;
+  color: #fff;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+.btn-prev,
+.btn-next {
+  background: #ff0000;
+}
+
+.finish-state {
+  justify-content: center !important;
+  width: 100%;
+}
+.btn-finish {
+  background: linear-gradient(45deg, #ff0000, #cc0000) !important;
+  padding: 15px 60px !important;
+  font-size: 18px !important;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 15px rgba(255, 0, 0, 0.3);
+  border-radius: 30px !important;
+}
+.btn-finish:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(255, 0, 0, 0.4);
+}
+
+/* 6. RESPONSIVE */
+@media (max-width: 600px) {
+  .stepper-header {
+    flex-direction: column;
+    text-align: center;
+    padding: 10px;
+  }
+  .steps {
+    width: 100%;
+    margin-top: 15px;
+    gap: 15px; /* Giảm mạnh từ 80px xuống 15px trên mobile */
+    justify-content: space-around;
+  }
+  .step-item {
+    font-size: 10px;
+  }
+  .step-item i {
+    width: 30px;
+    height: 30px;
+    line-height: 30px;
+    font-size: 14px;
+  }
+  .top-banner-img {
+    width: 100%;
+    height: auto;
+  }
+  .input-group-row input {
+    min-width: 100%;
+  }
+
+  /* Fix lỗi tràn cho hàng sản phẩm bên dưới */
+  .cart-row {
+    flex-wrap: wrap !important;
+    padding: 12px !important;
+    align-items: flex-start !important;
+  }
+
+  .cart-row img {
+    flex: 0 0 60px;
+  }
+
+  .cart-row > div:nth-child(2) {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  /* Đẩy cụm nút thao tác (stepper & xóa) xuống hàng riêng trên mobile */
+  .cart-row > div:last-child {
+    flex: 0 0 100% !important;
+    justify-content: space-between !important;
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #eee;
+  }
+}
+
+@media (max-width: 768px) {
+  .order-product-img {
+    width: 100%;
+    max-width: 220px;
+    margin: 0 auto 20px;
+  }
+  .stepper-header {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .order-summary {
+    max-width: 100%;
+    margin: 20px 0 0;
+  }
+  .order-footer-btns {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+/* TỐI ƯU CHO ĐIỆN THOẠI CỰC NHỎ (Dưới 360px) */
+@media (max-width: 360px) {
+  .order-flow-container {
+    padding: 10px 5px;
+  }
+  .steps {
+    gap: 5px;
+  }
+  .btn-order {
+    padding: 10px 20px;
+    font-size: 12px;
+  }
+  .btn-finish {
+    padding: 12px 30px !important;
+    font-size: 14px !important;
+    width: 100%;
+    border-radius: 10px !important;
+  }
+
+  /* Trên điện thoại siêu nhỏ, ẩn chữ 'Xóa' chỉ để lại icon để tránh tràn nút */
+  .cart-del span, 
+  .buy-now-del span {
+    display: none !important;
+  }
+  .cart-del, 
+  .buy-now-del {
+    padding: 8px !important;
+    width: 38px;
+    justify-content: center !important;
+  }
+}
