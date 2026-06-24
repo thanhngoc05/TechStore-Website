@@ -1,0 +1,187 @@
+/* Minimal additions on top of Tra_cuu.css */
+
+.od-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.od-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #666;
+}
+
+.od-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #d70018;
+  text-decoration: none;
+  color: #fff;
+  background: #d70018;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.od-back:hover {
+  opacity: 0.92;
+}
+
+.od-back:active {
+  opacity: 0.85;
+}
+
+.od-section {
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 12px;
+}
+
+.od-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.od-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #eee;
+  background: #fff;
+  color: #333;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.od-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.od-btn-danger {
+  border-color: #d70018;
+  background: #fff;
+  color: #d70018;
+}
+
+.od-btn-danger:hover {
+  opacity: 0.92;
+}
+
+.od-section h4 {
+  margin: 0 0 10px;
+  font-size: 14px;
+  color: #333;
+}
+
+.od-kv {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 8px 12px;
+  font-size: 13px;
+  color: #444;
+}
+
+.od-kv .k {
+  color: #666;
+}
+
+.od-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.od-item {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 8px 12px;
+  padding: 10px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  align-items: center;
+}
+
+.od-item-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+  border: 1px solid #f0f0f0;
+  background: #fff;
+  object-fit: contain;
+}
+
+.od-item-img--empty {
+  display: grid;
+  place-items: center;
+  color: #999;
+  font-size: 18px;
+}
+
+.od-item-info {
+  min-width: 0;
+}
+
+.od-item .name {
+  font-weight: 700;
+  color: #333;
+}
+
+.od-item .meta {
+  font-size: 12px;
+  color: #666;
+}
+
+.od-item .price {
+  font-weight: 800;
+  color: #ff0000;
+  white-space: nowrap;
+}
+
+.od-pay-block + .od-pay-block {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed #eee;
+}
+
+.od-pay-title {
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #333;
+  font-size: 13px;
+}
+
+@media (max-width: 600px) {
+  .od-kv {
+    grid-template-columns: 1fr;
+  }
+
+  .od-item {
+    grid-template-columns: 64px 1fr;
+    align-items: start;
+  }
+
+  .od-item-img {
+    width: 64px;
+    height: 64px;
+  }
+
+  .od-item .price {
+    grid-column: 1 / -1;
+    text-align: right;
+  }
+}
