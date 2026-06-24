@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexTech Đăng nhập</title>
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background-color: #f4f7fe;
+        margin: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+      }
+      .login-container {
+        width: 100%;
+        max-width: 380px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        background: #fff;
+        border-top: 5px solid transparent;
+        transition: all 0.3s;
+        position: relative; /* Thêm để định vị nút quay lại */
+      }
+
+      /* Nút X quay lại góc trên bên phải */
+      .back-home-corner {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        color: #999;
+        text-decoration: none;
+        font-size: 20px;
+        transition: 0.3s;
+      }
+      .back-home-corner:hover {
+        color: #333;
+        transform: scale(1.1);
+      }
+
+      .logo img {
+        max-width: 150px;
+        margin-bottom: 15px;
+      }
+      h2 {
+        font-size: 22px;
+        margin-bottom: 25px;
+        color: #1a234a;
+      }
+      .form-group {
+        text-align: left;
+        margin-bottom: 15px;
+        position: relative;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: 600;
+        font-size: 0.85em;
+      }
+      .form-group input {
+        width: 100%;
+        padding: 11px 12px;
+        border: 1px solid #dcdfe6;
+        border-radius: 8px;
+        box-sizing: border-box;
+        font-size: 15px;
+      }
+      .toggle-password {
+        position: absolute;
+        right: 12px;
+        top: 35px;
+        cursor: pointer;
+        color: #999;
+      }
+      .btn-login {
+        width: 100%;
+        padding: 12px;
+        background: #5d87ff;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 10px;
+        font-size: 16px;
+      }
+
+      .admin-section {
+        margin-top: 25px;
+        border-top: 1px dashed #ddd;
+        padding-top: 20px;
+      }
+      .admin-login-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 18px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #6c757d;
+        text-decoration: none;
+        border: 1px solid #dcdfe6;
+        border-radius: 20px;
+        background: #f9f9f9;
+        transition: 0.3s;
+      }
+      .admin-login-btn:hover {
+        color: #d32f2f;
+        border-color: #d32f2f;
+        background: #fff5f5;
+        transform: translateY(-2px);
+      }
+
+      footer {
+        margin-top: 20px;
+        font-size: 0.85em;
+        border-top: 1px solid #eee;
+        padding-top: 15px;
+        line-height: 1.6;
+      }
+      footer a {
+        color: #5d87ff;
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      /* Link tiếp tục với tư cách khách */
+      .continue-guest {
+        display: block;
+        margin-top: 10px;
+        color: #666;
+        text-decoration: none;
+        font-style: italic;
+      }
+      .continue-guest:hover {
+        text-decoration: underline;
+      }
+
+      /* Animation cho Modal và Spinner */
+      @keyframes modalFadeIn {
+        from { opacity: 0; transform: translateY(-20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      .fa-spin-custom { animation: spin 1s linear infinite; }
+      #forgotPassModal.active { display: flex !important; }
+    </style>
+  </head>
+  <body>
+    <div class="login-container" id="loginBox">
+      <a href="index.html" class="back-home-corner" title="Quay lại trang chủ">
+        <i class="fas fa-times"></i>
+      </a>
+
+      <div class="logo"><img src="../assets/img/Logo_white.png" /></div>
+      <h2 id="loginTitle">Đăng nhập khách hàng</h2>
+
+      <form id="loginForm">
+        <div class="form-group">
+          <label>Tên đăng nhập</label>
+          <input
+            type="text"
+            id="username"
+            placeholder="Nhập tên đăng nhập"
+            required
+          />
+        </div>
+        <div class="form-group">
+          <label>Mật khẩu</label>
+          <input
+            type="password"
+            id="password"
+            placeholder="Nhập mật khẩu"
+            required
+          />
+          <i class="fas fa-eye toggle-password" id="eyeIcon"></i>
+        </div>
+        <!-- Làm nút Quên mật khẩu rõ hơn -->
+        <div style="text-align: right; margin-top: -12px; margin-bottom: 20px;">
+          <a href="javascript:void(0)" id="forgotPassBtn" style="font-size: 0.9em; color: #5d87ff; text-decoration: none; font-weight: 600;">Quên mật khẩu?</a>
+        </div>
+        <button type="submit" class="btn-login" id="mainBtn">Đăng nhập</button>
+      </form>
+
+      <div class="admin-section">
+        <a
+          href="javascript:void(0)"
+          class="admin-login-btn"
+          id="toggleAdminView"
+        >
+          <i class="fas fa-user-shield"></i> Chế độ Quản trị viên
+        </a>
+      </div>
+
+      <footer>
+        <p>Chưa có tài khoản? <a href="register.html">Đăng ký ngay</a></p>
+        <a href="index.html" class="continue-guest"
+          >Tiếp tục sử dụng với tư cách khách</a
+        >
+      </footer>
+    </div>
+
+    <!-- Khung nhỏ Quên mật khẩu (Modal) -->
+    <div id="forgotPassModal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 9999; justify-content: center; align-items: center; padding: 20px;">
+      <div style="background: white; padding: 30px; border-radius: 20px; width: 100%; max-width: 400px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); text-align: left; animation: modalFadeIn 0.4s ease-out;">
+        <div style="text-align: center; margin-bottom: 20px;">
+          <div style="width: 60px; height: 60px; background: #f0f4ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 15px;">
+            <i class="fas fa-lock-open" style="color: #5d87ff; font-size: 24px;"></i>
+          </div>
+          <h3 style="margin: 0; color: #1a234a; font-size: 1.4rem; font-weight: 700;">Khôi phục mật khẩu</h3>
+          <p style="font-size: 0.85rem; color: #666; margin-top: 10px; line-height: 1.5;">Đừng lo lắng! Chỉ cần nhập email đã đăng ký, chúng tôi sẽ cấp lại mật khẩu mới cho bạn.</p>
+        </div>
+        
+        <div class="form-group" style="margin-bottom: 20px; text-align: left;">
+          <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 0.85rem; color: #444;">Email tài khoản</label>
+          <input type="email" id="forgotEmail" placeholder="Nhập email của bạn..." style="width: 100%; padding: 14px; border: 1.5px solid #eee; border-radius: 12px; box-sizing: border-box; font-size: 14px; outline: none; transition: 0.3s;">
+        </div>
+        
+        <div style="display: flex; gap: 12px;">
+          <button id="closeForgotModal" style="flex: 1; padding: 14px; border: none; background: #f5f5f5; color: #666; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s;">Quay lại</button>
+          <button id="submitForgotBtn" style="flex: 1.5; padding: 14px; background: #5d87ff; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s;">
+            <span id="submitForgotText">Gửi mật khẩu</span>
+            <i class="fas fa-circle-notch fa-spin-custom" id="submitForgotSpinner" style="display: none;"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script src="../scripts/api-config.js"></script>
+    <script>
+      let isAdminView = false;
+
+      // Xử lý Ẩn/Hiện mật khẩu
+      document.getElementById("eyeIcon").addEventListener("click", function () {
+        const pwd = document.getElementById("password");
+        const isPass = pwd.type === "password";
+        pwd.type = isPass ? "text" : "password";
+        this.classList.toggle("fa-eye");
+        this.classList.toggle("fa-eye-slash");
+      });
+
+      // Chuyển đổi giao diện Admin/Khách hàng
+      const toggleBtn = document.getElementById("toggleAdminView");
+      toggleBtn.addEventListener("click", function () {
+        isAdminView = !isAdminView;
+        const title = document.getElementById("loginTitle");
+        const box = document.getElementById("loginBox");
+        const btn = document.getElementById("mainBtn");
+
+        if (isAdminView) {
+          title.innerText = "HỆ THỐNG ĐĂNG NHẬP ADMIN";
+          title.style.color = "#d32f2f";
+          this.innerHTML = '<i class="fas fa-user"></i> Quay lại Khách hàng';
+          this.style.color = "#d32f2f";
+          this.style.borderColor = "#d32f2f";
+          btn.style.background = "#d32f2f";
+          box.style.borderTopColor = "#d32f2f";
+        } else {
+          title.innerText = "Đăng nhập khách hàng";
+          title.style.color = "#1a234a";
+          this.innerHTML =
+            '<i class="fas fa-user-shield"></i> Chế độ Quản trị viên';
+          this.style.color = "#6c757d";
+          this.style.borderColor = "#dcdfe6";
+          btn.style.background = "#5d87ff";
+          box.style.borderTopColor = "transparent";
+        }
+      });
+
+      // Xử lý gửi dữ liệu đăng nhập
+      document
+        .getElementById("loginForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const username = document.getElementById("username").value;
+          const password = document.getElementById("password").value;
+          const required_role = isAdminView ? "admin" : "user";
+
+          try {
+            const loginUrl =
+              typeof window.apiUrl === "function"
+                ? window.apiUrl("/login")
+                : "/login";
+            const res = await fetch(loginUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, password, required_role }),
+            });
+            const data = await res.json();
+
+            if (res.ok) {
+              localStorage.setItem("token", data.access_token);
+              localStorage.setItem("role", data.role);
+              localStorage.setItem("username", data.username);
+              alert("Đăng nhập thành công!");
+              window.location.href =
+                data.role === "admin" ? "/admin.html" : "/index.html";
+            } else {
+              alert(data.msg);
+            }
+          } catch (err) {
+            alert("Lỗi: Không thể kết nối tới Server Backend!");
+          }
+        });
+
+      // Xử lý Quên mật khẩu với Modal
+      const forgotModal = document.getElementById("forgotPassModal");
+      const forgotBtn = document.getElementById("forgotPassBtn");
+      const closeForgot = document.getElementById("closeForgotModal");
+      const submitForgot = document.getElementById("submitForgotBtn");
+
+      forgotBtn.addEventListener("click", () => {
+        forgotModal.classList.add("active");
+        document.getElementById("forgotEmail").focus();
+      });
+
+      closeForgot.addEventListener("click", () => {
+        forgotModal.classList.remove("active");
+      });
+
+      submitForgot.addEventListener("click", async function() {
+        const email = document.getElementById("forgotEmail").value;
+        if (!email || email.trim() === "") {
+          alert("Vui lòng nhập email!");
+          return;
+        }
+
+        const spinner = document.getElementById("submitForgotSpinner");
+        const btnText = document.getElementById("submitForgotText");
+
+        submitForgot.disabled = true;
+        spinner.style.display = "inline-block";
+        btnText.innerText = "Đang gửi...";
+
+        try {
+          const forgotUrl = typeof window.apiUrl === "function" ? window.apiUrl("/api/forgot-password") : "/api/forgot-password";
+          const res = await fetch(forgotUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email: email.trim() }),
+          });
+          const data = await res.json();
+          alert(data.msg);
+          if (res.ok) forgotModal.classList.remove("active");
+        } catch (err) {
+          alert("Lỗi: Không thể kết nối tới Server Backend!");
+        } finally {
+          submitForgot.disabled = false;
+          spinner.style.display = "none";
+          btnText.innerText = "Gửi mật khẩu";
+        }
+      });
+    </script>
+  </body>
+</html>
