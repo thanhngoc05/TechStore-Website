@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tài khoản của tôi - NexTech</title>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    /> 
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon">
+    <style>
+      :root {
+        --primary: #5d87ff;
+        --bg: #f4f7fe;
+        --text: #1a234a;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+      }
+      .profile-wrapper {
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0 20px;
+      }
+      .profile-card {
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+        display: flex;
+        overflow: hidden;
+      }
+
+      .profile-sidebar {
+        width: 280px;
+        background: #f8faff;
+        padding: 40px 20px;
+        border-right: 1px solid #edf2f9;
+        text-align: center;
+      }
+      .avatar-circle {
+        width: 100px;
+        height: 100px;
+        background: var(--primary);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 40px;
+        margin: 0 auto 15px;
+      }
+      .profile-sidebar h3 {
+        margin: 10px 0 5px;
+        font-size: 20px;
+      }
+      .profile-sidebar p {
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 30px;
+      }
+
+      .profile-main {
+        flex: 1;
+        padding: 40px;
+      }
+      .section-title {
+        font-size: 18px;
+        font-weight: 700;
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--primary);
+      }
+      .grid-inputs {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+      .form-group {
+        margin-bottom: 15px;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #555;
+      }
+      input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 10px;
+        font-size: 14px;
+        transition: 0.3s;
+        box-sizing: border-box;
+      }
+      input:focus {
+        border-color: var(--primary);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(93, 135, 255, 0.1);
+      }
+      input[readonly] {
+        background: #f9f9f9;
+        color: #888;
+        border-style: dashed;
+        cursor: not-allowed;
+      }
+
+      .btn-group {
+        margin-top: 30px;
+        display: flex;
+        gap: 15px;
+      }
+      .btn-update {
+        flex: 1;
+        background: var(--primary);
+        color: white;
+        border: none;
+        padding: 14px;
+        border-radius: 10px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: 0.3s;
+      }
+      .btn-update:hover {
+        background: #4573f8;
+        transform: translateY(-2px);
+      }
+      .btn-home {
+        padding: 14px 25px;
+        background: white;
+        border: 1px solid #ddd;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #666;
+        font-weight: 600;
+        text-align: center;
+      }
+
+      /* Tối ưu hóa cho điện thoại và máy tính bảng nhỏ */
+      @media (max-width: 768px) {
+        .profile-wrapper {
+          margin: 15px auto;
+          padding: 0 10px;
+        }
+        .profile-card {
+          flex-direction: column; /* Chuyển sidebar lên trên, form xuống dưới */
+        }
+        .profile-sidebar {
+          width: 100%;
+          border-right: none;
+          border-bottom: 1px solid #edf2f9;
+          padding: 30px 20px;
+        }
+        .profile-main {
+          padding: 25px 20px;
+        }
+        .grid-inputs {
+          grid-template-columns: 1fr; /* Các ô nhập liệu xếp thành 1 cột */
+          gap: 15px;
+        }
+        .btn-group {
+          flex-direction: column; /* Các nút bấm xếp chồng lên nhau */
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="profile-wrapper">
+      <div class="profile-card">
+        <div class="profile-sidebar">
+          <div class="avatar-circle" id="avatar-initial">U</div>
+          <h3 id="display-name">Username</h3>
+          <p id="display-email">email@example.com</p>
+          <div
+            style="
+              text-align: left;
+              font-size: 13px;
+              color: #888;
+              border-top: 1px solid #eee;
+              padding-top: 20px;
+            "
+          >
+            <p><i class="fas fa-shield-alt"></i> Tài khoản đã xác minh</p>
+            <p><i class="fas fa-calendar-check"></i> Thành viên NexTech</p>
+          </div>
+        </div>
+
+        <div class="profile-main">
+          <div class="section-title">
+            <i class="fas fa-user-edit"></i> Thông tin cơ bản
+          </div>
+          <div class="grid-inputs">
+            <div class="form-group">
+              <label>Tên đăng nhập</label>
+              <input type="text" id="username" readonly />
+            </div>
+            <div class="form-group">
+              <label>Địa chỉ Email</label>
+              <input type="text" id="email" readonly />
+            </div>
+            <div class="form-group">
+              <label>Số điện thoại</label>
+              <input type="text" id="phone" placeholder="0xxx xxx xxx" />
+            </div>
+            <div class="form-group">
+              <label>Địa chỉ nhận hàng</label>
+              <input
+                type="text"
+                id="address"
+                placeholder="Số nhà, tên đường..."
+              />
+            </div>
+          </div>
+
+          <div class="section-title">
+            <i class="fas fa-key"></i> Bảo mật & Mật khẩu
+          </div>
+          <div class="form-group">
+            <label>Mật khẩu hiện tại <span style="color: #ff4d4f; font-weight: normal; font-style: italic;">(Nhập mật khẩu vừa nhận qua Email để đổi mới)</span></label>
+            <input
+              type="password"
+              id="old_password"
+              placeholder="Nhập mật khẩu đang dùng"
+            />
+          </div>
+          <div class="grid-inputs">
+            <div class="form-group">
+              <label>Mật khẩu mới</label>
+              <input
+                type="password"
+                id="new_password"
+                placeholder="Tối thiểu 6 ký tự"
+              />
+            </div>
+            <div class="form-group">
+              <label>Xác nhận mật khẩu mới</label>
+              <input
+                type="password"
+                id="confirm_password"
+                placeholder="Nhập lại mật khẩu mới"
+              />
+            </div>
+          </div>
+
+          <div class="btn-group">
+            <a href="index.html" class="btn-home">Quay lại</a>
+            <button class="btn-update" onclick="updateProfile()">
+              LƯU THAY ĐỔI
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/profile.js"></script>
+  </body>
+</html>
