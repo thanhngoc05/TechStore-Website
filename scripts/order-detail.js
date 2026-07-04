@@ -243,7 +243,7 @@ function renderOrderActions(detail) {
 
         // MoMo orders: open refund request form instead of cancelling immediately.
         if (isMomo) {
-          const nextUrl = `/momo-cancel.html?order_code=${encodeURIComponent(code)}`;
+          const nextUrl = `momo-cancel.html?order_code=${encodeURIComponent(code)}`;
           window.location.href = nextUrl;
           return;
         }
