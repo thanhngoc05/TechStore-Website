@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tra cứu đơn hàng - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css" />
+    <link rel="stylesheet" href="../assets/CSS/Tra_cuu.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+  </head>
+  <body>
+    <div class="sidebar-overlay"></div>
+    <!-- Header promotion: chỉ hiển thị dòng chữ "Mua PC tặng màn 240Hz" -->
+    <div class="header-promotion">
+      <button class="promo-button">MUA LAPTOP</button>
+      <span class="promo-text"
+        ><span class="promo-brand">NXT</span> | TẶNG MÀN OLED 240Hz</span
+      >
+    </div>
+
+    <header class="main-header">
+      <div class="container header-content">
+        <div class="logo">
+          <a href="index.html">
+            <img
+              src="../assets/img/LOGO.png"
+              alt="NexTech - Trang chủ"
+              class="logo-img"
+            />
+          </a>
+        </div>
+
+        <div class="category-btn"><i class="fas fa-bars"></i> Danh mục</div>
+
+        <div class="search-bar">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Bạn cần tìm gì?"
+            autocomplete="off"
+          />
+          <button type="button" id="searchBtn">
+            <i class="fas fa-search"></i>
+          </button>
+
+          <!-- QUAN TRỌNG -->
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+
+        <div class="header-tools">
+          <a href="tel:19001234" class="tool-item">
+            <i class="fas fa-phone-alt"></i>
+            <div class="text">
+              <span>Hotline</span>
+              <strong>1900.1234</strong>
+            </div>
+          </a>
+
+          <a href="./Showroom.html" class="tool-item">
+            <i class="fas fa-map-marker-alt"></i>
+            <div class="text">
+              <span>Hệ thống</span>
+              <strong>cửa hàng</strong>
+            </div>
+          </a>
+
+          <a href="./Tra_cuu.html" class="tool-item">
+            <i class="fas fa-box"></i>
+            <div class="text">
+              <span>Tra cứu</span>
+              <strong>đơn hàng</strong>
+            </div>
+          </a>
+
+          <div id="user-account" class="user-account">
+            <a href="./login.html" class="login-btn" id="user-display">
+              <i class="fas fa-user-circle"></i>
+              <span>Đăng nhập</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="sub-nav">
+      <div class="container sub-nav-flex">
+        <a href="./Laptop.html" class="nav-link"
+          ><i class="fa-solid fa-tags"></i> Mua Laptop tặng màn 240Hz</a
+        >
+        <span class="sep"></span>
+        <a href="./Hotdeal.html" class="nav-link"
+          ><i class="fa-solid fa-fire-flame-curved"></i> Hot Deal | Laptop</a
+        >
+        <span class="sep"></span>
+        <a href="./news.html" class="nav-link"
+          ><i class="fa-solid fa-newspaper"></i> Tin tức</a
+        >
+        <span class="sep"></span>
+        <a href="./dichvu.html" class="nav-link"
+          ><i class="fa-solid fa-screwdriver-wrench"></i> Dịch vụ kỹ thuật</a
+        >
+        <span class="sep"></span>
+        <a href="./thucudoimoi.html" class="nav-link"
+          ><i class="fa-solid fa-rotate"></i> Thu cũ đổi mới</a
+        >
+        <span class="sep"></span>
+        <a href="./tracuubaohanh.html" class="nav-link"
+          ><i class="fa-solid fa-shield-check"></i> Tra cứu bảo hành</a
+        >
+      </div>
+    </nav>
+
+    <!-- Quang cao -->
+
+    <div class="main-container-top">
+      <!-- Sidebar với banner dưới -->
+      <div class="sidebar-left">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <ul>
+            <li>
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Điện thoại</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Iphone.html">iPhone</a></li>
+                  <li><a href="../pages/SamSung.html">Samsung</a></li>
+                </ul>
+              </div>
+            </li>
+
+            <li>
+              <i class="fa-solid fa-laptop-code"></i>
+              <span>Laptop</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Laptop.html">Dell</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-microchip"></i>
+              <span>Main, CPU, VGA</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/CPU.html">CPU AMD</a></li>
+                </ul>
+              </div>
+            </li>
+
+            <li>
+              <i class="fa-solid fa-memory"></i>
+              <span>Ổ cứng, RAM, Thẻ nhớ</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/RAM.html">RAM DDR4</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-clock"></i>
+              <span>SMARTWATCH</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/SmartWatch.html">Smart Watch</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-keyboard"></i>
+              <span>Bàn phím</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Banphim.html">Bàn phím cơ VGN</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-desktop"></i>
+              <span>Màn hình</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Manhinh.html">Asus</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-hands-helping"></i>
+              <span>Dịch vụ & khác</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="./Chinhsachbaohanh.html">Bảo hành</a></li>
+                  <li><a href="./dichvu.html">Lắp ráp</a></li>
+                  <li><a href="./dichvu.html">Vệ sinh</a></li>
+                </ul>
+              </div>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <main class="ct-wrapper">
+      <div class="container">
+        <nav class="bc-top">
+          <a href="index.html"><i class="fas fa-home"></i> Trang chủ</a>
+          <span class="sep">></span>
+          <strong>Tra cứu đơn hàng</strong>
+        </nav>
+
+        <div class="m-layout">
+          <aside class="side-bn left-side">
+            <div class="stk-box"><img src="../assets/img/Left.png" /></div>
+          </aside>
+
+          <section class="page-main">
+            <div class="order-flow-container">
+              <aside class="account-sidebar">
+                <div class="user-info-brief">
+                  <i class="fas fa-user-circle"></i>
+                  <strong id="userNameDisplay">Khách hàng</strong>
+                </div>
+                <ul class="side-menu">
+
+                  <li>
+                    <a href="#" class="active"
+                      ><i class="fas fa-shopping-bag"></i> Quản lý đơn hàng</a
+                    >
+                  </li>
+                  <li>
+                    <a href="index.html"
+                      ><i class="fas fa-sign-out-alt"></i> Thoát</a>
+                  </li>
+                </ul>
+              </aside>
+
+              <div class="lookup-main-content">
+                <h3 style="margin-top: 0; margin-bottom: 20px">
+                  Quản lý đơn hàng
+                </h3>
+
+                <div class="stepper-header">
+                  <div
+                    class="step-item active"
+                    onclick="filterOrders('all', this)"
+                  >
+                    Tất cả
+                  </div>
+                  <div
+                    class="step-item"
+                    onclick="filterOrders('processing', this)"
+                  >
+                    Đang xử lý
+                  </div>
+                  <div
+                    class="step-item"
+                    onclick="filterOrders('shipping', this)"
+                  >
+                    Đang vận chuyển
+                  </div>
+                  <div
+                    class="step-item"
+                    onclick="filterOrders('completed', this)"
+                  >
+                    Hoàn thành
+                  </div>
+                  <div
+                    class="step-item"
+                    onclick="filterOrders('cancelled', this)"
+                  >
+                    Hủy
+                  </div>
+                </div>
+
+                <div id="orderListArea"></div>
+              </div>
+            </div>
+          </section>
+
+          <aside class="side-bn right-side">
+            <div class="stk-box"><img src="../assets/img/right.png" /></div>
+          </aside>
+        </div>
+      </div>
+    </main>
+
+    <footer class="main-footer">
+      <div class="container footer-grid">
+        <div class="footer-col">
+          <h3>Về Nexa Tech</h3>
+          <ul class="hover-col">
+            <li><a href="./Gioithieu.html">Giới thiệu</a></li>
+            <li><a href="./Tuyendung.html">Tuyển dụng</a></li>
+            <li><a href="./Lienhe.html">Liên hệ</a></li>
+          </ul>
+          <div class="social-links">
+            <div class="social-wrapper">
+              <p>HÃY KẾT NỐI VỚI CHÚNG TÔI</p>
+              <div class="icons">
+                <a href=""
+                  ><i class="fab fa-facebook-f" style="color: blue"></i
+                ></a>
+                <a href=""
+                  ><i class="fab fa-tiktok" style="color: black"></i
+                ></a>
+                <a href=""><i class="fab fa-youtube" style="color: red"></i></a>
+                <a href=""><i class="fas fa-users" style="color: green"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-col">
+          <h3>Chính sách</h3>
+          <ul class="hover-col">
+            <li><a href="./Chinhsachbaohanh.html">Chính sách bảo hành</a></li>
+            <li><a href="./Chinhsachgiaohang.html">Chính sách giao hàng</a></li>
+            <li><a href="./Chinhsachbao mat.html">Chính sách bảo mật</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h3>Thông tin</h3>
+          <ul class="hover-col">
+            <li><a href="./Showroom.html">Hệ thống cửa hàng</a></li>
+            <li><a href="">Hướng dẫn mua hàng</a></li>
+            <li><a href="">Hướng dẫn thanh toán</a></li>
+            <li><a href="">Hướng dẫn trả góp</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-col">
+          <h3>Tổng đài hỗ trợ</h3>
+          <ul class="contact-list">
+            <li>Mua hàng: <span class="blue-text">1900.0000</span></li>
+            <li>Bảo hành: <span class="blue-text">1900.0001</span></li>
+            <li>Khiếu nại: <span class="blue-text">1900.0002</span></li>
+            <li>Email: <span class="blue-text">hihi123@ut.edu.vn</span></li>
+          </ul>
+          <div class="partner-logo">
+            <img src="../assets/img/GHN.png" alt="Giao Hàng Nhanh" />
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/scripts.js"></script>
+    <script src="../scripts/sidebar.js"></script>
+    <script src="../scripts/CheckLogin.js"></script>
+    <script src="../scripts/Tra_cuu.js"></script>
+  </body>
+</html>
