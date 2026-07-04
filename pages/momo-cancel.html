@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hủy đơn & Yêu cầu hoàn tiền - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css" />
+
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+    <style>
+      .container {
+        max-width: 1100px;
+        width: 100%;
+        margin: 0 auto;
+        padding: 0 15px;
+      }
+      .refund-page {
+        padding: 40px 0 70px;
+        background: #f9f9f9;
+      }
+      .refund-card {
+        background: #fff;
+        border: 1px solid #eee;
+        border-radius: 8px;
+        padding: 28px;
+      }
+      .refund-title {
+        font-size: 22px;
+        color: #1a234a;
+        margin-bottom: 14px;
+      } 
+      .refund-desc {
+        color: #555;
+        margin-bottom: 18px;
+        line-height: 1.5;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px 18px;
+      }
+      .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .form-group label {
+        font-weight: 600;
+        color: #444;
+      }
+      .form-group input,
+      .form-group textarea {
+        width: 100%;
+        padding: 12px 14px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        outline: none;
+      }
+      .form-group input:focus,
+      .form-group textarea:focus {
+        border-color: #0076df;
+      }
+      .span-2 {
+        grid-column: 1 / -1;
+      }
+      .btn-row {
+        display: flex;
+        gap: 12px;
+        margin-top: 18px;
+      }
+      .btn-primary {
+        background: #0076df;
+        color: #fff;
+        border: none;
+        padding: 12px 18px;
+        border-radius: 4px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      .btn-primary:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+      }
+      .btn-secondary {
+        background: #fff;
+        color: #1a234a;
+        border: 1px solid #ddd;
+        padding: 12px 18px;
+        border-radius: 4px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+      @media (max-width: 900px) {
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+
+
+    <main class="refund-page">
+      <div class="container">
+        <div class="refund-card">
+          <div class="refund-title">
+            Hủy đơn hàng & Yêu cầu hoàn tiền (MoMo)
+          </div>
+          <div class="refund-desc">
+            Vui lòng nhập thông tin tài khoản ngân hàng để NexTech hoàn tiền.
+            Yêu cầu sẽ được gửi về email cửa hàng (giống trang Liên hệ).
+          </div>
+
+          <form id="refundForm">
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="orderCode">Mã đơn hàng</label>
+                <input
+                  id="orderCode"
+                  name="order_code"
+                  type="text"
+                  placeholder="VD: OD2024xxxx"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="customerEmail">Email (để cửa hàng trả lời)</label>
+                <input
+                  id="customerEmail"
+                  name="email"
+                  type="email"
+                  placeholder="email@domain.com"
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="customerName">Họ và tên</label>
+                <input
+                  id="customerName"
+                  name="name"
+                  type="text"
+                  placeholder="Nhập họ tên"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="customerPhone">Số điện thoại</label>
+                <input
+                  id="customerPhone"
+                  name="phone"
+                  type="tel"
+                  placeholder="Nhập số điện thoại"
+                  required
+                />
+              </div>
+
+              <div class="form-group">
+                <label for="bankName">Ngân hàng</label>
+                <input
+                  id="bankName"
+                  name="bank_name"
+                  type="text"
+                  list="bankList"
+                  placeholder="Chọn/nhập tên ngân hàng"
+                  required
+                />
+                <datalist id="bankList">
+                  <option value="Vietcombank"></option>
+                  <option value="VietinBank"></option>
+                  <option value="BIDV"></option>
+                  <option value="Agribank"></option>
+                  <option value="Techcombank"></option>
+                  <option value="MB Bank"></option>
+                  <option value="ACB"></option>
+                  <option value="VPBank"></option>
+                  <option value="Sacombank"></option>
+                  <option value="TPBank"></option>
+                  <option value="SHB"></option>
+                  <option value="VIB"></option>
+                  <option value="OCB"></option>
+                  <option value="Eximbank"></option>
+                </datalist>
+              </div>
+
+              <div class="form-group">
+                <label for="bankAccountNumber">Số tài khoản</label>
+                <input
+                  id="bankAccountNumber"
+                  name="account_number"
+                  type="text"
+                  inputmode="numeric"
+                  placeholder="Nhập số tài khoản"
+                  required
+                />
+              </div>
+
+              <div class="form-group span-2">
+                <label for="bankAccountHolder">Chủ tài khoản</label>
+                <input
+                  id="bankAccountHolder"
+                  name="account_holder"
+                  type="text"
+                  placeholder="Nhập tên chủ tài khoản"
+                  required
+                />
+              </div>
+
+              <div class="form-group span-2">
+                <label for="refundNote">Ghi chú (tuỳ chọn)</label>
+                <textarea
+                  id="refundNote"
+                  name="note"
+                  rows="4"
+                  placeholder="Ví dụ: Tôi muốn huỷ do đặt nhầm..."
+                ></textarea>
+              </div>
+            </div>
+
+            <div class="btn-row">
+              <button id="submitRefundBtn" class="btn-primary" type="submit">
+                Gửi yêu cầu hoàn tiền
+              </button>
+              <button class="btn-secondary" type="button" id="backHomeBtn">
+                Về trang chủ
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </main>
+
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/momo-cancel.js"></script>
+  </body>
+</html>
