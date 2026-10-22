@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống cửa hàng - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css">
+
+    <link rel="stylesheet" href="../assets/CSS/product-detail.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon">
+    <style>
+
+
+        /* ========== PHẦN HỆ THỐNG CỬA HÀNG (KHÔNG ICON, ĐƠN GIẢN) ========== */
+        .store-section {
+            padding: 48px 0 40px;
+            background-color: #f9fbfe;
+            max-width: 1500px;
+            margin: 0 auto;
+        }
+
+        .main-title {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .main-title h1 {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1a234a;
+            margin-bottom: 8px;
+        }
+        .main-title p {
+            color: #5a6874;
+            font-size: 15px;
+        }
+
+        .region-block {
+            margin-bottom: 56px;
+        }
+        .region-title {
+            font-size: 22px;
+            font-weight: 600;
+            color: #0076DF;
+            border-left: 4px solid #0076DF;
+            padding-left: 16px;
+            margin-bottom: 28px;
+        }
+
+        .store-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 30px;
+        }
+
+        .store-card {
+            background: white;
+            border-radius: 20px;
+            transition: all 0.2s ease;
+            border: 1px solid #e9edf2;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .store-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 24px -12px rgba(0,118,223,0.15);
+            border-color: #cde0f5;
+        }
+
+        .store-name {
+            padding: 18px 24px 12px;
+            border-bottom: 1px solid #eff3f9;
+        }
+        .store-name h2 {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #1e2f47;
+            margin: 0;
+        }
+        .store-badge {
+            font-size: 12px;
+            font-weight: 500;
+            color: red;
+            background: #eef4ff;
+            display: inline-block;
+            padding: 3px 12px;
+            border-radius: 30px;
+            margin-top: 8px;
+        }
+
+        .store-info {
+            padding: 20px 24px 24px;
+        }
+        .address {
+            line-height: 1.5;
+            color: #2c3e50;
+            font-size: 15px;
+            font-weight: 500;
+            margin-bottom: 14px;
+        }
+        .hours {
+            font-size: 13px;
+            color: #6c7a8e;
+            border-top: 1px solid #f0f4fa;
+            padding-top: 14px;
+            margin-top: 6px;
+        }
+        .hours span {
+            color: #0076DF;
+            font-weight: 500;
+        }
+
+        /* Nút xem bản đồ (dạng button, không icon) */
+        .map-btn {
+            display: inline-block;
+            background-color: #0076DF;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+            padding: 8px 20px;
+            border-radius: 40px;
+            text-decoration: none;
+            margin-top: 18px;
+            transition: 0.2s;
+            border: none;
+            cursor: pointer;
+            text-align: center;
+        }
+        .map-btn:hover {
+            background-color: #005bb5;
+            transform: scale(0.98);
+        }
+
+        /* Liên hệ section */
+        .contact-section {
+            background-color: white;
+            border-radius: 24px;
+            padding: 32px 28px;
+            margin: 40px 0 20px;
+            border: 1px solid #eef2f8;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.02);
+        }
+        .contact-section h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #1a234a;
+            margin-bottom: 20px;
+        }
+        .contact-details {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 32px;
+            row-gap: 20px;
+        }
+        .contact-item {
+            flex: 1;
+            min-width: 180px;
+        }
+        .contact-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #6c7a8e;
+            margin-bottom: 6px;
+        }
+        .contact-value {
+            font-size: 18px;
+            font-weight: 600;
+            color: red;
+        }
+        .contact-value a {
+            color: #0076DF;
+            text-decoration: none;
+        }
+        .contact-value a:hover {
+            text-decoration: underline;
+        }
+        hr {
+            margin: 28px 0 0;
+            border: none;
+            border-top: 1px solid #eef2f8;
+        }
+
+        @media (max-width: 768px) {
+            .store-grid {
+                grid-template-columns: 1fr;
+            }
+            .region-title {
+                font-size: 20px;
+            }
+            .contact-value {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    
+        <div class="sidebar-overlay"></div>
+    <!-- Header promotion: chỉ hiển thị dòng chữ "Mua PC tặng màn 240Hz" -->
+    <div class="header-promotion">
+        <button class="promo-button">MUA LAPTOP</button>
+        <span class="promo-text"><span class="promo-brand">NXT</span> | TẶNG MÀN OLED 240Hz</span>
+    </div>
+
+    <header class="main-header">
+        <div class="container header-content">
+            <div class="logo">
+                <a href="index.html">
+                    <img src="../assets/img/LOGO.png" alt="NexTech - Trang chủ" class="logo-img">
+                </a>
+            </div>
+
+            <div class="category-btn">
+                <i class="fas fa-bars"></i> Danh mục
+            </div>
+
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Bạn cần tìm gì?" autocomplete="off">
+                <button type="button" id="searchBtn">
+                    <i class="fas fa-search"></i>
+                </button>
+
+                <!-- QUAN TRỌNG -->
+                <div id="searchDropdown" class="search-dropdown"></div>
+            </div>
+
+            <div class="header-tools">
+                <a href="tel:19001234" class="tool-item">
+                    <i class="fas fa-phone-alt"></i>
+                    <div class="text">
+                        <span>Hotline</span>
+                        <strong>1900.1234</strong>
+                    </div>
+                </a>
+
+                <a href="./Showroom.html" class="tool-item">
+                    <i class="fas fa-map-marker-alt"></i>
+                    <div class="text">
+                        <span>Hệ thống</span>
+                        <strong>cửa hàng</strong>
+                    </div>
+                </a>
+
+                <a href="./Tra_cuu.html" class="tool-item">
+                    <i class="fas fa-box"></i>
+                    <div class="text">
+                        <span>Tra cứu</span>
+                        <strong>đơn hàng</strong>
+                    </div>
+                </a>
+
+               <div id="user-account" class="user-account">
+    <a href="./login.html" class="login-btn" id="user-display">
+        <i class="fas fa-user-circle"></i>
+        <span>Đăng nhập</span>
+    </a>
+</div>
+            </div>
+        </div>
+    </header>
+
+    <nav class="sub-nav">
+        <div class="container sub-nav-flex">
+            <a href="./Laptop.html" class="nav-link"><i class="fa-solid fa-tags"></i> Mua Laptop tặng màn 240Hz</a>
+            <span class="sep"></span>
+            <a href="./Hotdeal.html" class="nav-link"><i class="fa-solid fa-fire-flame-curved"></i> Hot Deal | Laptop</a>
+            <span class="sep"></span>
+            <a href="https://gearvn.com/blogs/all" class="nav-link"><i class="fa-solid fa-newspaper"></i> Tin tức</a>
+            <span class="sep"></span>
+            <a href="./dichvu.html" class="nav-link"><i class="fa-solid fa-screwdriver-wrench"></i> Dịch vụ kỹ thuật</a>
+            <span class="sep"></span>
+            <a href="./thucudoimoi.html" class="nav-link"><i class="fa-solid fa-rotate"></i> Thu cũ đổi mới</a>
+            <span class="sep"></span>
+            <a href="./tracuubaohanh.html" class="nav-link"><i class="fa-solid fa-shield-check"></i> Tra cứu bảo hành</a>
+        </div>
+    </nav>
+
+
+
+    <!-- Quang cao -->
+
+    <div class="main-container-top">
+        <!-- Sidebar với banner dưới -->
+        <div class="sidebar-left">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+            <ul>
+                <li>
+                    <i class="fa-solid fa-mobile-screen-button"></i>
+                    <span>Điện thoại</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/Iphone.html">iPhone</a></li>
+                            <li><a href="../pages/SamSung.html">Samsung</a></li>
+                        </ul>
+                    </div>
+                </li>
+                
+                <li>
+                    <i class="fa-solid fa-laptop-code"></i>
+                    <span>Laptop</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/Laptop.html">Dell</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <i class="fa-solid fa-microchip"></i>
+                    <span>Main, CPU, VGA</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/CPU.html">CPU AMD</a></li>
+                        </ul>
+                    </div>
+                </li>
+                
+                <li>
+                    <i class="fa-solid fa-memory"></i>
+                    <span>Ổ cứng, RAM, Thẻ nhớ</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/RAM.html">RAM DDR4</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <i class="fa-solid fa-clock"></i>
+                    <span>SMARTWATCH</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/SmartWatch.html">Smart Watch</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <i class="fa-solid fa-keyboard"></i>
+                    <span>Bàn phím</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/Banphim.html">Bàn phím cơ VGN</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <i class="fa-solid fa-desktop"></i>
+                    <span>Màn hình</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="../pages/Manhinh.html">Asus</a></li>
+                        </ul>
+                    </div>
+                </li>
+                <li>
+                    <i class="fa-solid fa-hands-helping"></i>
+                    <span>Dịch vụ & khác</span>
+                    <div class="submenu">
+                        <ul>
+                            <li><a href="./Chinhsachbaohanh.html">Bảo hành</a></li>
+                            <li><a href="./dichvu.html">Lắp ráp</a></li>
+                            <li><a href="./dichvu.html">Vệ sinh</a></li>
+                        </ul>
+                    </div>
+                </li>
+            </ul>
+        </aside>
+        </div>
+    
+    </div>
+
+    <!-- NỘI DUNG CHÍNH: HỆ THỐNG CỬA HÀNG NEXtech -->
+    <section class="store-section">
+        <div class="container">
+            <div class="main-title">
+                <h1>HỆ THỐNG CỬA HÀNG NEXTECH</h1>
+                <p>Trải nghiệm công nghệ hiện đại tại các cơ sở trên toàn quốc</p>
+            </div>
+
+            <!-- Khu vực Hồ Chí Minh -->
+            <div class="region-block">
+                <div class="region-title">Hệ thống cửa hàng tại Hồ Chí Minh</div>
+                <div class="store-grid">
+                    <!-- CS1 Bình Thạnh -->
+                    <div class="store-card">
+                        <div class="store-name">
+                            <h2>NexTech Bình Thạnh</h2>
+                            <div class="store-badge">Trụ sở chính</div>
+                        </div>
+                        <div class="store-info">
+                            <div class="address">
+                                <span style="font-weight: bold;">Địa chỉ:</span> <span style="color:#0076DF"> Số 2, Đường Võ Oanh (D3 cũ), Phường 25, Quận Bình Thạnh, TP.HCM</span>
+                            </div>
+                            <div class="hours">
+                                <span>Giờ mở cửa</span> · 08:30 – 21:00 (T2 – CN)
+                            </div>
+                            <a href="https://maps.app.goo.gl/h8zxCesT16V1Ra4n8" class="map-btn" target="_blank">Xem bản đồ</a>
+                        </div>
+                    </div>
+                    <!-- CS2 Thủ Đức -->
+                    <div class="store-card">
+                        <div class="store-name">
+                            <h2>NexTech Thủ Đức</h2>
+                            <div class="store-badge">Khu vực Thủ Đức</div>
+                        </div>
+                        <div class="store-info">
+                            <div class="address">
+                                <span style="font-weight: bold;"></span>Địa chỉ:</span> <span style="color:#0076DF">Số 10, Đường số 12, KP3, Phường An Khánh (Trần Não cũ), TP. Thủ Đức, TP.HCM</span>
+                            </div>
+                            <div class="hours">
+                                <span>Giờ mở cửa</span> · 08:30 – 21:00 (T2 – CN)
+                            </div>
+                            <a href="https://maps.app.goo.gl/BaGkxNyJVC12sJno7" class="map-btn" target="_blank">Xem bản đồ</a>
+                        </div>
+                    </div>
+                    <!-- CS3 Quận 12 -->
+                    <div class="store-card">
+                        <div class="store-name">
+                            <h2>NexTech Quận 12</h2>
+                            <div class="store-badge">Quận 12</div>
+                        </div>
+                        <div class="store-info">
+                            <div class="address">
+                                <span style="font-weight: bold;"></span>Địa chỉ:</span> <span style="color:#0076DF">Số 70, Đường Tô Ký, Phường Tân Chánh Hiệp, Quận 12, TP.HCM</span>
+                            </div>
+                            <div class="hours">
+                                <span>Giờ mở cửa</span> · 08:30 – 20:30 (T2 – T7), CN: 09:00 – 18:00
+                            </div>
+                            <a href="https://maps.app.goo.gl/8AedDPKRhPedKWfD9" class="map-btn" target="_blank">Xem bản đồ</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Khu vực Hà Nội -->
+            <div class="region-block">
+                <div class="region-title">Hệ thống cửa hàng tại Hà Nội</div>
+                <div class="store-grid">
+                    <!-- Hà Nội 1 - Thanh Xuân -->
+                    <div class="store-card">
+                        <div class="store-name">
+                            <h2>NexTech Thanh Xuân</h2>
+                            <div class="store-badge">Khu vực trung tâm</div>
+                        </div>
+                        <div class="store-info">
+                            <div class="address">
+                                123 Nguyễn Trãi, Phường Thanh Xuân Trung, Quận Thanh Xuân, Hà Nội
+                            </div>
+                            <div class="hours">
+                                <span>Giờ mở cửa</span> · 08:30 – 20:30 (T2 – CN)
+                            </div>
+                            <a href="https://maps.google.com/?q=20.9984,105.8005" class="map-btn" target="_blank">Xem bản đồ</a>
+                        </div>
+                    </div>
+                    <!-- Hà Nội 2 - Đống Đa -->
+                    <div class="store-card">
+                        <div class="store-name">
+                            <h2>NexTech Đống Đa</h2>
+                            <div class="store-badge">Showroom chính</div>
+                        </div>
+                        <div class="store-info">
+                            <div class="address">
+                                45 Thái Hà, Phường Trung Liệt, Quận Đống Đa, Hà Nội
+                            </div>
+                            <div class="hours">
+                                <span>Giờ mở cửa</span> · 08:30 – 21:00 (T2 – CN)
+                            </div>
+                            <a href="https://maps.google.com/?q=21.0143,105.8246" class="map-btn" target="_blank">Xem bản đồ</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Liên hệ với chúng tôi -->
+            <div class="contact-section">
+                <h3 style="color:#0076DF">Liên hệ với chúng tôi</h3>
+                <div class="contact-details">
+                    <div class="contact-item">
+                        <div class="contact-label">HOTLINE</div>
+                        <div class="contact-value">1900.1234</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Email</div>
+                        <div class="contact-value"><a href="mailto:cskh@NexTech.com">cskh@NexTech.com</a></div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-label">Website</div>
+                        <div class="contact-value"><a href="https://www.NexTech.com" target="_blank">www.NexTech.com</a></div>
+                    </div>
+                </div>
+                <hr>
+                <p style="font-size: 13px; color: #6c7a8e; margin-top: 16px;">Chúng tôi luôn sẵn sàng hỗ trợ quý khách từ 8h30 đến 21h00 hàng ngày.</p>
+            </div>
+        </div>
+    </section>
+
+    <footer class="main-footer">
+        <div class="container footer-grid">
+            <div class="footer-col">
+                <h3>Về Nexa Tech</h3>
+                <ul class="hover-col">
+                    <li><a href="./Gioithieu.html">Giới thiệu</a></li>
+                    <li><a href="./Tuyendung.html">Tuyển dụng</a></li>
+                    <li><a href="./Lienhe.html">Liên hệ</a></li>
+                </ul>
+                <div class="social-links">
+                    <div class="social-wrapper">
+                        <p>HÃY KẾT NỐI VỚI CHÚNG TÔI</p>
+                        <div class="icons">
+                            <a href=""><i class="fab fa-facebook-f" style="color:blue"></i></a>
+                            <a href=""><i class="fab fa-tiktok" style="color:black"></i></a>
+                            <a href=""><i class="fab fa-youtube" style="color:red"></i></a>
+                            <a href=""><i class="fas fa-users" style="color:green"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="footer-col">
+                <h3>Chính sách</h3>
+                <ul class="hover-col">
+                    <li><a href="./Chinhsachbaohanh.html">Chính sách bảo hành</a></li>
+                    <li><a href="./Chinhsachgiaohang.html">Chính sách giao hàng</a></li>
+                    <li><a href="./Chinhsachbaomat.html">Chính sách bảo mật</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>Thông tin</h3>
+                <ul class="hover-col">
+                    <li><a href="./Showroom.html" style="color:#0076DF">Hệ thống cửa hàng</a></li>
+                    <li><a href="">Hướng dẫn mua hàng</a></li>
+                    <li><a href="">Hướng dẫn thanh toán</a></li>
+                    <li><a href="">Hướng dẫn trả góp</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-col">
+                <h3>Tổng đài hỗ trợ</h3>
+                <ul class="contact-list">
+                    <li>Mua hàng: <span class="blue-text">1900.0000</span></li>
+                    <li>Bảo hành: <span class="blue-text">1900.0001</span></li>
+                    <li>Khiếu nại: <span class="blue-text">1900.0002</span></li>
+                    <li>Email: <span class="blue-text">hihi123@ut.edu.vn</span></li>
+                </ul>
+                <div class="partner-logo">
+                    <img src="../assets/img/GHN.png" alt="Giao Hàng Nhanh">
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Giữ lại chức năng tìm kiếm đơn giản (nếu cần)
+        (function() {
+            const searchBtn = document.getElementById('searchBtn');
+            const searchInput = document.getElementById('searchInput');
+            if(searchBtn && searchInput) {
+                searchBtn.addEventListener('click', function() {
+                    let kw = searchInput.value.trim();
+                    if(kw === "") {
+                        alert("Vui lòng nhập từ khóa tìm kiếm");
+                        return;
+                    }
+                    alert("Chức năng tìm kiếm đang phát triển. Vui lòng ghé trực tiếp cửa hàng!");
+                });
+                searchInput.addEventListener('keypress', function(e) {
+                    if(e.key === 'Enter') searchBtn.click();
+                });
+            }
+
+        })();
+    </script>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/scripts.js"></script>
+    <script src="../scripts/sidebar.js"></script>
+    <script src="../scripts/CheckLogin.js"></script>
+</body>
+</html>

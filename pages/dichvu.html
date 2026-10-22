@@ -1,0 +1,647 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dịch vụ kỹ thuật - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css" />
+ 
+    <link rel="stylesheet" href="../assets/CSS/product-detail.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+    <style>
+     
+
+      /* ========== TRANG DỊCH VỤ KỸ THUẬT – ĐƠN GIẢN, KHÔNG ICON ========== */
+      .service-page {
+        background-color: #f9fbfe;
+        padding: 40px 0 60px;
+      }
+
+      /* Giới thiệu đầu trang */
+      .intro-text {
+        text-align: center;
+        margin-bottom: 8px;
+        font-size: 30px;
+        font-weight: 500;
+        color: #1e2f47;
+        background: #fff;
+        display: inline-block;
+        width: auto;
+        margin-left: auto;
+        margin-right: auto;
+        padding: 10px 28px;
+        border-radius: 40px;
+        letter-spacing: -0.2px;
+      }
+
+      /* Banner đơn giản */
+      .service-banner {
+        padding: 28px 32px;
+        text-align: center;
+        margin-bottom: 16px;
+      }
+
+      /* Tiêu đề section chung */
+      .section-title {
+        font-size: 26px;
+        font-weight: 700;
+        color: #1a234a;
+        margin: 0px 0 20px 0;
+        padding-bottom: 8px;
+        border-bottom: 3px solid #0076df;
+        display: inline-block;
+      }
+      .section-sub {
+        color: #4a627a;
+        margin-bottom: 28px;
+        font-size: 16px;
+      }
+
+      /* Card grid 3 cột */
+      .grid-3 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin-bottom: 40px;
+      }
+      .service-card {
+        background: white;
+        border-radius: 24px;
+        padding: 24px;
+        transition: 0.2s;
+        border: 1px solid #eef2f8;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      }
+      .service-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 12px 28px -12px rgba(0, 118, 223, 0.12);
+        border-color: #d4e2f5;
+      }
+      .card-title {
+        font-size: 22px;
+        font-weight: 700;
+        color: #0076df;
+        margin-bottom: 8px;
+      }
+      .card-price {
+        font-size: 28px;
+        font-weight: 800;
+        color: RED;
+        margin: 12px 0 8px;
+      }
+      .price-note {
+        font-size: 13px;
+        color: #2ecc71;
+        font-weight: 500;
+        margin-bottom: 16px;
+      }
+      .card-desc {
+        color: #4a5568;
+        line-height: 1.5;
+        margin: 12px 0;
+        font-size: 14px;
+      }
+      .card-list {
+        list-style: none;
+        padding: 0;
+        margin: 16px 0 8px;
+      }
+      .card-list li {
+        padding: 6px 0;
+        font-size: 14px;
+        color: #2d3e5f;
+        border-bottom: 1px dashed #edf2f7;
+      }
+      .highlight {
+        background: #f0f7ff;
+        border-left: 3px solid #0076df;
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-weight: 500;
+        margin-top: 12px;
+      }
+
+      /* Dịch vụ lẻ: 2 cột */
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin: 24px 0 32px;
+      }
+      .service-item {
+        background: white;
+        border-radius: 20px;
+        padding: 16px 20px;
+        border: 1px solid #eef2f8;
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        flex-wrap: wrap;
+        transition: 0.1s;
+      }
+      .service-name {
+        font-weight: 600;
+        color: #1e2f47;
+        font-size: 15px;
+      }
+      .service-fee {
+        font-weight: 700;
+        color: RED;
+        font-size: 16px;
+      }
+      .small-note {
+        font-size: 12px;
+        color: #7f8c8d;
+        margin-top: 4px;
+        width: 100%;
+      }
+
+      /* Gói thành viên */
+      .member-card {
+        background: linear-gradient(135deg, #f0f6ff, #ffffff);
+        border-radius: 28px;
+        padding: 28px 32px;
+        margin: 40px 0 32px;
+        border: 1px solid #dce9f5;
+      }
+      .member-price {
+        font-size: 32px;
+        font-weight: 800;
+        color: #000;
+      }
+      .member-features {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        margin: 20px 0 12px;
+      }
+      .member-features span {
+        background: white;
+        padding: 6px 16px;
+        border-radius: 40px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #1e2f47;
+        border: 1px solid #cde0f5;
+      }
+
+      /* Bảng thông tin vận hành */
+      .info-block {
+        background: white;
+        border-radius: 24px;
+        padding: 28px;
+        margin: 32px 0;
+        border: 1px solid #eef2f8;
+      }
+      .info-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid #f0f4fa;
+      }
+      .info-label {
+        font-weight: 600;
+        color: #2c3e66;
+        min-width: 160px;
+      }
+      .info-value {
+        color: #4a5568;
+        flex: 1;
+      }
+      .contact-footer {
+        background: #ffffff;
+        border-radius: 24px;
+        padding: 28px;
+        margin-top: 40px;
+        border: 1px solid #eef2f8;
+      }
+      .contact-line {
+        font-size: 16px;
+        margin: 12px 0;
+        color: #1e2f47;
+      }
+      .contact-line strong {
+        color: #0076df;
+        min-width: 100px;
+        display: inline-block;
+      }
+
+      @media (max-width: 768px) {
+        .section-title {
+          font-size: 22px;
+        }
+        .card-price {
+          font-size: 24px;
+        }
+        .member-price {
+          font-size: 28px;
+        }
+        .info-row {
+          flex-direction: column;
+          gap: 6px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- HEADER (giữ nguyên theo yêu cầu) -->
+    <div class="header-promotion">
+      <button class="promo-button">MUA LAPTOP</button>
+      <span class="promo-text"
+        ><span class="promo-brand">NXT</span> | TẶNG MÀN OLED 240Hz</span
+      >
+    </div>
+
+    <header class="main-header">
+      <div class="container header-content">
+        <div class="logo">
+          <a href="index.html">
+            <img
+              src="../assets/img/LOGO.png"
+              alt="NexTech - Trang chủ"
+              class="logo-img"
+            />
+          </a>
+        </div>
+        <div class="category-btn"><i class="fas fa-bars"></i> Danh mục</div>
+        <div class="search-bar">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Bạn cần tìm gì?"
+            autocomplete="off"
+          />
+          <button type="button" id="searchBtn">
+            <i class="fas fa-search"></i>
+          </button>
+          <!-- QUAN TRỌNG -->
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+        <div class="header-tools">
+          <a href="tel:19001234" class="tool-item">
+            <i class="fas fa-phone-alt"></i>
+            <div class="text">
+              <span>Hotline</span><strong>1900.1234</strong>
+            </div>
+          </a>
+          <a href="./Showroom.html" class="tool-item">
+            <i class="fas fa-map-marker-alt"></i>
+            <div class="text">
+              <span>Hệ thống</span><strong>cửa hàng</strong>
+            </div>
+          </a>
+          <a href="./Tra_cuu.html" class="tool-item">
+            <i class="fas fa-box"></i>
+            <div class="text">
+              <span>Tra cứu</span><strong>đơn hàng</strong>
+            </div>
+          </a>
+          <div id="user-account" class="user-account">
+            <a href="./login.html" class="login-btn" id="user-display">
+              <i class="fas fa-user-circle"></i>
+              <span>Đăng nhập</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="sub-nav">
+      <div class="container sub-nav-flex">
+        <a href="./Laptop.html" class="nav-link"
+          ><i class="fa-solid fa-tags"></i> Mua Laptop tặng màn 240Hz</a
+        >
+        <span class="sep"></span>
+        <a href="./Hotdeal.html" class="nav-link"
+          ><i class="fa-solid fa-fire-flame-curved"></i> Hot Deal | Laptop</a
+        >
+        <span class="sep"></span>
+        <a href="https://gearvn.com/blogs/all" class="nav-link"
+          ><i class="fa-solid fa-newspaper"></i> Tin tức</a
+        >
+        <span class="sep"></span>
+        <a
+          href="./dichvu.html"
+          class="nav-link"
+          style="color: #0076df; font-weight: bold"
+          ><i class="fa-solid fa-screwdriver-wrench"></i> Dịch vụ kỹ thuật</a
+        >
+        <span class="sep"></span>
+        <a href="./thucudoimoi.html" class="nav-link"
+          ><i class="fa-solid fa-rotate"></i> Thu cũ đổi mới</a
+        >
+        <span class="sep"></span>
+        <a href="./tracuubaohanh.html" class="nav-link"
+          ><i class="fa-solid fa-shield-check"></i> Tra cứu bảo hành</a
+        >
+      </div>
+    </nav>
+
+    <!-- NỘI DUNG CHÍNH: DỊCH VỤ KỸ THUẬT (KHÔNG ICON, TỐI GIẢN) -->
+    <main class="service-page">
+      <div class="container">
+        <!-- Dòng chữ mở đầu -->
+        <div style="text-align: center; background-color: #fff">
+          <div class="intro-text">
+            NEXTECH hợp tác với UTH Service cung cấp dịch vụ kỹ thuật tại nhà
+          </div>
+        </div>
+
+        <!-- Banner ảnh (dạng placeholder đơn giản, không icon) -->
+        <div class="service-banner">
+          <img
+            src="../assets/img/dichvukythuat.png"
+            alt="DICH VỤ KỸ THUẬT NEXTECH"
+            style="max-width: 100%; border-radius: 5px"
+          />
+        </div>
+
+        <!-- COMBO DỊCH VỤ – TỐI ƯU CHI PHÍ -->
+        <h2 class="section-title">COMBO DỊCH VỤ – TỐI ƯU CHI PHÍ ĐẾN 45%</h2>
+        <p class="section-sub">
+          Lựa chọn hoàn hảo cho hiệu năng máy tính toàn diện.
+        </p>
+
+        <div class="grid-3">
+          <!-- Gói 1: LẮP ĐẶT -->
+          <div class="service-card">
+            <div class="card-title">[Gói 1] COMBO LẮP ĐẶT</div>
+            <div class="card-price">449.000đ</div>
+            <div class="price-note">✓ Tiết kiệm 35% so với mua lẻ</div>
+            <div class="card-desc">
+              <strong>Đối tượng:</strong> Khách hàng có sẵn linh kiện, cần lắp
+              ráp bộ PC mới tại nhà.
+            </div>
+            <ul class="card-list">
+              <li>Kiểm tra tình trạng linh kiện</li>
+              <li>Lắp ráp thiết bị, đi dây thẩm mỹ (cable management)</li>
+              <li>Cài đặt Windows & phần mềm cơ bản</li>
+            </ul>
+            <div class="highlight">
+              Lợi ích: Bạn dành thời gian thư giãn, mọi khâu kỹ thuật khó nhất
+              đã có chuyên gia lo. Máy sẵn sàng sử dụng ngay sau khi bàn giao.
+            </div>
+          </div>
+
+          <!-- Gói 2: BẢO TRÌ -->
+          <div class="service-card">
+            <div class="card-title">[Gói 2] COMBO BẢO TRÌ</div>
+            <div class="card-price">549.000đ</div>
+            <div class="price-note">✓ Tiết kiệm 25% so với mua lẻ</div>
+            <div class="card-desc">
+              <strong>Đối tượng:</strong> Khách hàng cần kiểm tra, vệ sinh máy
+              định kỳ để tối ưu hiệu năng.
+            </div>
+            <ul class="card-list">
+              <li>
+                Kiểm tra tổng thể linh kiện, tầm soát và xử lý lỗi phần
+                cứng/phần mềm
+              </li>
+              <li>
+                Vệ sinh hút bụi chuyên sâu, thay keo tản nhiệt CPU cao cấp (MX4)
+              </li>
+              <li>Cài lại Windows sạch sẽ</li>
+            </ul>
+            <div class="highlight">
+              Lợi ích: Kéo dài tuổi thọ linh kiện, máy chạy mát và ổn định như
+              lúc mới mua.
+            </div>
+          </div>
+
+          <!-- Gói 3: NÂNG CẤP -->
+          <div class="service-card">
+            <div class="card-title">[Gói 3] COMBO NÂNG CẤP</div>
+            <div class="card-price">649.000đ</div>
+            <div class="price-note">✓ Tiết kiệm 35% so với mua lẻ</div>
+            <div class="card-desc">
+              <strong>Đối tượng:</strong> Khách hàng muốn nâng cấp linh kiện mới
+              cho bộ PC cũ.
+            </div>
+            <ul class="card-list">
+              <li>
+                Kiểm tra linh kiện mới và cũ, lắp ráp nâng cấp, đi dây lại
+              </li>
+              <li>Vệ sinh toàn bộ máy, thay keo tản nhiệt MX4</li>
+              <li>Tối ưu hóa hệ điều hành theo cấu hình mới</li>
+            </ul>
+            <div class="highlight">
+              Lợi ích: Linh kiện được kiểm tra kỹ trước khi lắp, máy tính được
+              làm mới hoàn toàn từ trong ra ngoài, chỉ việc sử dụng không lo
+              nghĩ.
+            </div>
+          </div>
+        </div>
+
+        <!-- DỊCH VỤ LẺ – "BẠN GỌI, CHÚNG TÔI ĐẾN" -->
+        <h2 class="section-title">DỊCH VỤ LẺ – "BẠN GỌI, CHÚNG TÔI ĐẾN"</h2>
+        <p class="section-sub">
+          Giải quyết nhanh chóng các nhu cầu kỹ thuật cụ thể tại nhà.
+        </p>
+        <div class="grid-2">
+          <div class="service-item">
+            <span class="service-name">Bảo trì / Nâng cấp linh kiện</span
+            ><span class="service-fee">349.000đ</span>
+          </div>
+          <div class="service-item">
+            <span class="service-name">Cân màu màn hình chuyên nghiệp</span
+            ><span class="service-fee">349.000đ</span>
+          </div>
+          <div class="service-item">
+            <span class="service-name">Vệ sinh Laptop / PC (Tản khí)</span
+            ><span class="service-fee">349.000đ</span>
+          </div>
+          <div class="service-item">
+            <span class="service-name">Vệ sinh PC (Tản nhiệt nước AIO)</span
+            ><span class="service-fee">399.000đ</span>
+          </div>
+          <div class="service-item">
+            <span class="service-name">Vệ sinh Ghế Gaming (Da/Nỉ/Lưới)</span
+            ><span class="service-fee">349.000đ – 399.000đ</span>
+          </div>
+          <div class="service-item">
+            <span class="service-name">Vệ sinh dàn PC Custom</span
+            ><span class="service-fee">2.000.000đ – 5.000.000đ</span>
+            <div class="small-note">(Báo giá theo độ phức tạp)</div>
+          </div>
+          <div class="service-item">
+            <span class="service-name"
+              >Dịch vụ giao nhận tận nơi (PC, linh kiện)</span
+            ><span class="service-fee">Liên hệ báo giá</span>
+          </div>
+        </div>
+
+        <!-- GÓI THÀNH VIÊN -->
+        <h2 class="section-title">GÓI THÀNH VIÊN - CHỈ 999.000Đ/NĂM</h2>
+        <p class="section-sub">Chăm sóc công nghệ toàn diện suốt 12 tháng.</p>
+        <div class="member-card">
+          <div class="member-price">
+            <span style="color: RED">999.000đ</span>/ năm
+          </div>
+          <div class="member-features">
+            <span>02 lần Combo Bảo Trì chuyên sâu</span>
+            <span>01 lần dịch vụ lẻ bất kỳ</span>
+            <span>01 lần hỗ trợ kỹ thuật khẩn cấp (8h - 20h)</span>
+          </div>
+          <p style="margin-top: 16px">
+            <strong>Ưu điểm:</strong> Tiết kiệm hơn 45% chi phí so với gọi lẻ
+            từng đợt.<br />
+            Thời hạn: 12 tháng kể từ ngày kích hoạt.
+          </p>
+        </div>
+
+        <!-- THÔNG TIN VẬN HÀNH & CAM KẾT -->
+        <h2 class="section-title">THÔNG TIN VẬN HÀNH & CAM KẾT</h2>
+        <div class="info-block">
+          <div class="info-row">
+            <div class="info-label">Chính sách bảo hành:</div>
+            <div class="info-value">
+              Bảo hành 07 ngày kể từ khi hoàn tất dịch vụ.
+            </div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Phí di chuyển:</div>
+            <div class="info-value">
+              Miễn phí trong phạm vi 20km từ UTH Service ( Võ Oanh, Quận Bình
+              Thạnh ).<br />Từ 21km - 25km: phụ thu 50.000đ. Từ 26km - 30km: phụ
+              thu 100.000đ.
+            </div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Phụ thu ngoài giờ:</div>
+            <div class="info-value">150.000đ (Trước 8h30 hoặc sau 18h00).</div>
+          </div>
+          <div class="info-row">
+            <div class="info-label">Thời gian phản hồi:</div>
+            <div class="info-value">
+              UTH Service cam kết phản hồi và sắp xếp lịch trong vòng 12 tiếng.
+            </div>
+          </div>
+        </div>
+
+        <!-- THÔNG TIN LIÊN HỆ -->
+        <h2 class="section-title">THÔNG TIN LIÊN HỆ</h2>
+        <div class="contact-footer">
+          <div class="contact-line">
+            <strong>Hotline hỗ trợ:</strong> 0888.888.999
+          </div>
+          <div class="contact-line">
+            <strong>Địa chỉ:</strong
+            ><span
+              >Số 2, Đường Võ Oanh (D3 cũ), Phường 25, Quận Bình Thạnh,
+              TP.HCM</span
+            >
+          </div>
+          <div class="contact-line">
+            <strong>Thời gian làm việc:</strong> 08h30 - 18h00 (Thứ 2 - Chủ
+            Nhật)
+          </div>
+          <div
+            class="contact-line"
+            style="
+              margin-top: 16px;
+              border-top: 1px solid #eef2f5;
+              padding-top: 16px;
+            "
+          >
+            <em
+              >NexTech & UTH Service – Tận tâm, chuyên nghiệp, đồng hành cùng
+              mọi thiết bị công nghệ của bạn.</em
+            >
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- FOOTER (giữ nguyên theo yêu cầu) -->
+    <footer class="main-footer">
+      <div class="container footer-grid">
+        <div class="footer-col">
+          <h3>Về Nexa Tech</h3>
+          <ul class="hover-col">
+            <li><a href="./Gioithieu.html">Giới thiệu</a></li>
+            <li><a href="./Tuyendung.html">Tuyển dụng</a></li>
+            <li><a href="./Lienhe.html">Liên hệ</a></li>
+          </ul>
+          <div class="social-links">
+            <div class="social-wrapper">
+              <p>HÃY KẾT NỐI VỚI CHÚNG TÔI</p>
+              <div class="icons">
+                <a href=""
+                  ><i class="fab fa-facebook-f" style="color: blue"></i
+                ></a>
+                <a href=""
+                  ><i class="fab fa-tiktok" style="color: black"></i
+                ></a>
+                <a href=""><i class="fab fa-youtube" style="color: red"></i></a>
+                <a href=""><i class="fas fa-users" style="color: green"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h3>Chính sách</h3>
+          <ul class="hover-col">
+            <li><a href="./Chinhsachbaohanh.html">Chính sách bảo hành</a></li>
+            <li><a href="./Chinhsachgiaohang.html">Chính sách giao hàng</a></li>
+            <li><a href="./Chinhsachbaomat.html">Chính sách bảo mật</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3>Thông tin</h3>
+          <ul class="hover-col">
+            <li><a href="./Showroom.html">Hệ thống cửa hàng</a></li>
+            <li><a href="">Hướng dẫn mua hàng</a></li>
+            <li><a href="">Hướng dẫn thanh toán</a></li>
+            <li><a href="">Hướng dẫn trả góp</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3>Tổng đài hỗ trợ</h3>
+          <ul class="contact-list">
+            <li>Mua hàng: <span class="blue-text">1900.0000</span></li>
+            <li>Bảo hành: <span class="blue-text">1900.0001</span></li>
+            <li>Khiếu nại: <span class="blue-text">1900.0002</span></li>
+            <li>Email: <span class="blue-text">hihi123@ut.edu.vn</span></li>
+          </ul>
+          <div class="partner-logo">
+            <img src="../assets/img/GHN.png" alt="Giao Hàng Nhanh" />
+          </div>
+        </div>
+      </div>
+    </footer>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/scripts.js"></script>
+    <script src="../scripts/sidebar.js"></script>
+    <script>
+      // Giữ lại các tương tác đơn giản (tìm kiếm demo, category)
+      (function () {
+        const searchBtn = document.getElementById("searchBtn");
+        const searchInput = document.getElementById("searchInput");
+        if (searchBtn && searchInput) {
+          searchBtn.addEventListener("click", function () {
+            let kw = searchInput.value.trim();
+            if (kw === "") alert("Vui lòng nhập từ khóa tìm kiếm");
+            else
+              alert(
+                "Tính năng đang phát triển. Vui lòng liên hệ hotline để được hỗ trợ kỹ thuật.",
+              );
+          });
+          searchInput.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") searchBtn.click();
+          });
+        }
+        const catBtn = document.querySelector(".category-btn");
+        if (catBtn)
+          catBtn.addEventListener("click", () =>
+            alert("Danh mục sản phẩm: Laptop, PC, Phụ kiện, Màn hình,..."),
+          );
+      })();
+    </script>
+    <script src="../scripts/CheckLogin.js"></script>
+  </body>
+</html>
