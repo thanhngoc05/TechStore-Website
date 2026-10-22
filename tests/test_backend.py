@@ -138,7 +138,7 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.payment_state(), ('pending', 'processing'))
 
     def test_confirm_checks_amount_and_persists_success(self):
-        self.pending_payment()
+        order_code = self.pending_payment()
         verified = SimpleNamespace(order_code=123456, amount=1, amount_paid=1, status='PAID')
         sdk = SimpleNamespace(payment_requests=SimpleNamespace(get=lambda ref: verified))
         with patch.object(backend, 'payos_client', sdk):
@@ -148,6 +148,7 @@ class BackendTests(unittest.TestCase):
             verified.amount = verified.amount_paid = 200000
             r = self.client.post('/api/payment/confirm', headers=self.headers, json={'payment_ref': '123456'})
             self.assertEqual(r.status_code, 200, r.json)
+            self.assertEqual(r.json['order_code'], order_code)
         self.assertEqual(self.payment_state(), ('success', 'processing'))
 
     def test_signed_webhook_and_replay(self):

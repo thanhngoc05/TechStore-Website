@@ -1588,7 +1588,7 @@ def create_payment():
 
     # Lấy URL từ env
     return_url = os.getenv('PAYOS_RETURN_URL') or request.host_url.rstrip('/') + '/pages/order-information.html'
-    cancel_url = os.getenv('PAYOS_CANCEL_URL') or request.host_url.rstrip('/') + '/pages/momo-cancel.html'
+    cancel_url = os.getenv('PAYOS_CANCEL_URL') or request.host_url.rstrip('/') + '/pages/order-information.html'
     desc = f"Don {order.order_code[-6:]}"
 
     # Tạo request đúng chuẩn SDK
@@ -1701,7 +1701,7 @@ def confirm_payment():
                 newly_paid = payment.status == 'success'
         if newly_paid:
             _notify_paid_order(order)
-        return jsonify({"msg": "OK", "order_status": order.status,
+        return jsonify({"msg": "OK", "order_code": order.order_code, "order_status": order.status,
                         "payment_status": payment.status}), 200
     except ValueError:
         return jsonify({"msg": "Thanh toán cần được đối soát thủ công"}), 409
