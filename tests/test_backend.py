@@ -264,6 +264,56 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(r.status_code, 502)
         self.login('buyer')
 
+    def test_profile_rejects_locked_user(self):
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='buyer').one().is_locked = True
+            backend.db.session.commit()
+        self.assertEqual(self.client.get('/api/profile', headers=self.headers).status_code, 403)
+        r = self.client.put('/api/profile/update', headers=self.headers, json={'phone': '0900000000'})
+        self.assertEqual(r.status_code, 403)
+
+    def test_profile_rejects_deleted_user(self):
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='buyer').delete()
+            backend.db.session.commit()
+        self.assertEqual(self.client.get('/api/profile', headers=self.headers).status_code, 404)
+        self.assertEqual(self.client.put('/api/profile/update', headers=self.headers, json={}).status_code, 404)
+
+    def test_profile_validates_input(self):
+        for body in ([], {'phone': {}}, {'address': 123}, {'phone': '1' * 16},
+                     {'address': 'a' * 1001}, {'new_password': 123},
+                     {'new_password': 'short'}, {'new_password': 'a' * 73},
+                     {'new_password': 'correct-length', 'old_password': []}):
+            with self.subTest(body=body):
+                r = self.client.put('/api/profile/update', headers=self.headers, json=body)
+                self.assertEqual(r.status_code, 400, r.json)
+
+    def test_failed_password_change_preserves_profile(self):
+        r = self.client.put('/api/profile/update', headers=self.headers, json={
+            'phone': '0900000000', 'address': 'Changed',
+            'old_password': 'wrong-password', 'new_password': 'new-test-password'})
+        self.assertEqual(r.status_code, 400)
+        profile = self.client.get('/api/profile', headers=self.headers).json
+        self.assertIsNone(profile['phone'])
+        self.assertEqual(profile['address'], '')
+        self.login('buyer')
+
+    def test_password_only_update_preserves_contact(self):
+        r = self.client.put('/api/profile/update', headers=self.headers,
+                            json={'phone': '0900000000', 'address': 'Test Address'})
+        self.assertEqual(r.status_code, 200, r.json)
+        new_password = secrets.token_urlsafe(16)
+        r = self.client.put('/api/profile/update', headers=self.headers,
+                            json={'old_password': self.password, 'new_password': new_password})
+        self.assertEqual(r.status_code, 200, r.json)
+        profile = self.client.get('/api/profile', headers=self.headers).json
+        self.assertEqual(profile['phone'], '0900000000')
+        self.assertEqual(profile['address'], 'Test Address')
+        r = self.client.post('/login', json={'username': 'buyer', 'password': self.password, 'required_role': 'user'})
+        self.assertEqual(r.status_code, 401)
+        self.password = new_password
+        self.login('buyer')
+
     def test_missing_secret_blocks_startup(self):
         env = dict(os.environ, JWT_SECRET_KEY='')
         r = subprocess.run([sys.executable, '-c', 'import app'], cwd=ROOT / 'backend', env=env,

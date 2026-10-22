@@ -1021,8 +1021,9 @@ def get_reviews(pid):
 @app.route('/api/profile', methods=['GET'])
 @jwt_required()
 def get_profile():
-    current_user = get_jwt_identity()
-    user = User.query.filter_by(username=current_user).first()
+    user, err = _get_current_user_entity()
+    if err:
+        return err
     return jsonify({
         "username": user.username, "email": user.email, "phone": user.phone, "address": user.address or "",
         "role": user.role, "created_at": user.created_at.strftime('%d/%m/%Y %H:%M:%S') if user.created_at else None,
@@ -1032,17 +1033,32 @@ def get_profile():
 @app.route('/api/profile/update', methods=['PUT'])
 @jwt_required()
 def update_profile():
-    current_user = get_jwt_identity()
-    user = User.query.filter_by(username=current_user).first()
-    data = request.get_json()
-    user.phone = data.get('phone')
-    user.address = data.get('address')
+    user, err = _get_current_user_entity()
+    if err:
+        return err
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu hồ sơ không hợp lệ"}), 400
+    for field, max_length in (('phone', 15), ('address', 1000)):
+        value = data.get(field)
+        if value is not None and (not isinstance(value, str) or len(value) > max_length):
+            return jsonify({"msg": "Số điện thoại hoặc địa chỉ không hợp lệ"}), 400
     new_pwd = data.get('new_password')
     old_pwd = data.get('old_password')
+    for value in (new_pwd, old_pwd):
+        if value is not None and (not isinstance(value, str) or len(value.encode('utf-8')) > 72):
+            return jsonify({"msg": "Mật khẩu phải là chuỗi và không vượt quá 72 byte"}), 400
     if new_pwd:
+        if len(new_pwd) < 6:
+            return jsonify({"msg": "Mật khẩu mới phải từ 6 ký tự"}), 400
         if not old_pwd or not bcrypt.check_password_hash(user.password, old_pwd):
             return jsonify({"msg": "Mật khẩu hiện tại không chính xác!"}), 400
         user.password = bcrypt.generate_password_hash(new_pwd).decode('utf-8')
+    # Apply partial updates only after validation succeeds.
+    if 'phone' in data:
+        user.phone = (data['phone'] or '').strip() or None
+    if 'address' in data:
+        user.address = (data['address'] or '').strip()
     user.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "Cập nhật thông tin thành công!"}), 200

@@ -13,6 +13,8 @@
 - Payment tests use a real SDK signature verifier and mocked provider responses; no money moves.
 - Checkout return handling verifies payment through the authenticated API, with nine JavaScript regression scenarios.
 - Payment creation rejects paid, cancelled or fulfilled orders, invalid methods and changes to an order's payment method; repeated COD requests reuse the pending payment.
+- Order details display the API payment status consistently for COD, payOS and legacy MoMo, including pending and failed payments.
+- Profile endpoints reject locked/deleted accounts, validate input before changing data and preserve contact details during password-only updates.
 
 ## Remaining integration work
 
