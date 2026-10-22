@@ -1,0 +1,593 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Thu cũ đổi mới - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css" />
+
+    <link rel="stylesheet" href="../assets/CSS/product-detail.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+    <style>
+
+
+      /* ========== TRANG THU CŨ ĐỔI MỚI (TỐI GIẢN, KHÔNG ICON) ========== */
+      .trade-page {
+        background-color: #f9fbfe;
+        padding: 48px 0 60px;
+      }
+
+      .page-title {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+      .page-title h1 {
+        font-size: 32px;
+        font-weight: 700;
+        color: #1a234a;
+        margin-bottom: 12px;
+      }
+      .page-title p {
+        font-size: 16px;
+        color: #4a627a;
+        max-width: 720px;
+        margin: 0 auto;
+        line-height: 1.5;
+      }
+
+      /* section styling */
+      .section {
+        background: white;
+        border-radius: 28px;
+        padding: 28px 32px;
+        margin-bottom: 40px;
+        border: 1px solid #eef2f8;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+      }
+      .section h2 {
+        font-size: 24px;
+        font-weight: 700;
+        color: #000;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #eef2fa;
+      }
+      .section h3 {
+        font-size: 20px;
+        font-weight: 600;
+        color: #1a234a;
+        margin: 20px 0 12px;
+      }
+
+      /* grid for reasons / steps */
+      .grid-2,
+      .grid-4 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 24px;
+        margin: 20px 0 8px;
+      }
+      .reason-card,
+      .step-card {
+        background: #fafcff;
+        padding: 20px;
+        border-radius: 20px;
+        border: 1px solid #eef2fa;
+        transition: 0.2s;
+      }
+      .reason-card strong,
+      .step-card strong {
+        display: block;
+        font-size: 18px;
+        font-weight: 700;
+        color: #0076df;
+        margin-bottom: 12px;
+      }
+      .reason-card p,
+      .step-card p {
+        color: #2c3e66;
+        line-height: 1.45;
+        font-size: 14px;
+      }
+
+      /* pricing policy */
+      .policy-list {
+        list-style: none;
+        padding: 0;
+      }
+      .policy-list li {
+        padding: 12px 0;
+        border-bottom: 1px solid #eff3f9;
+        font-size: 15px;
+        color: #2c3e66;
+      }
+      .policy-list li strong {
+        color: #0076df;
+        min-width: 140px;
+        display: inline-block;
+      }
+
+      .decline-list {
+        background: #fff7f0;
+        padding: 20px 24px;
+        border-radius: 20px;
+        margin: 20px 0 8px;
+        border-left: 4px solid #ff9500;
+      }
+      .decline-list p {
+        margin: 8px 0;
+      }
+
+      /* FAQ */
+      .faq-item {
+        border-bottom: 1px solid #eef2f8;
+        padding: 16px 0;
+      }
+      .faq-question {
+        font-weight: 700;
+        font-size: 16px;
+        color: #1a234a;
+        margin-bottom: 8px;
+      }
+      .faq-answer {
+        color: #4a627a;
+        font-size: 15px;
+        line-height: 1.45;
+      }
+
+      .contact-box {
+        background: #eef4ff;
+        border-radius: 24px;
+        padding: 28px 32px;
+        text-align: center;
+        margin-top: 20px;
+      }
+      .contact-box p {
+        margin: 12px 0;
+        font-size: 16px;
+      }
+      .contact-highlight {
+        font-size: 20px;
+        font-weight: 700;
+        color: #0076df;
+      }
+
+      @media (max-width: 768px) {
+        .section {
+          padding: 20px;
+        }
+        .page-title h1 {
+          font-size: 26px;
+        }
+        .section h2 {
+          font-size: 22px;
+        }
+        .policy-list li strong {
+          display: block;
+          margin-bottom: 4px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="sidebar-overlay"></div>
+    <!-- Header promotion: chỉ hiển thị dòng chữ "Mua PC tặng màn 240Hz" -->
+    <div class="header-promotion">
+      <button class="promo-button">MUA LAPTOP</button>
+      <span class="promo-text"
+        ><span class="promo-brand">NXT</span> | TẶNG MÀN OLED 240Hz</span
+      >
+    </div>
+
+    <header class="main-header">
+      <div class="container header-content">
+        <div class="logo">
+          <a href="index.html">
+            <img
+              src="../assets/img/LOGO.png"
+              alt="NexTech - Trang chủ"
+              class="logo-img"
+            />
+          </a>
+        </div>
+
+        <div class="category-btn"><i class="fas fa-bars"></i> Danh mục</div>
+
+        <div class="search-bar">
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Bạn cần tìm gì?"
+            autocomplete="off"
+          />
+          <button type="button" id="searchBtn">
+            <i class="fas fa-search"></i>
+          </button>
+
+          <!-- QUAN TRỌNG -->
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+
+        <div class="header-tools">
+          <a href="tel:19001234" class="tool-item">
+            <i class="fas fa-phone-alt"></i>
+            <div class="text">
+              <span>Hotline</span>
+              <strong>1900.1234</strong>
+            </div>
+          </a>
+
+          <a href="./Showroom.html" class="tool-item">
+            <i class="fas fa-map-marker-alt"></i>
+            <div class="text">
+              <span>Hệ thống</span>
+              <strong>cửa hàng</strong>
+            </div>
+          </a>
+
+          <a href="./Tra_cuu.html" class="tool-item">
+            <i class="fas fa-box"></i>
+            <div class="text">
+              <span>Tra cứu</span>
+              <strong>đơn hàng</strong>
+            </div>
+          </a>
+
+          <div id="user-account" class="user-account">
+            <a href="./login.html" class="login-btn" id="user-display">
+              <i class="fas fa-user-circle"></i>
+              <span>Đăng nhập</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="sub-nav">
+      <div class="container sub-nav-flex">
+        <a href="./Laptop.html" class="nav-link"
+          ><i class="fa-solid fa-tags"></i> Mua Laptop tặng màn 240Hz</a
+        >
+        <span class="sep"></span>
+        <a href="./Hotdeal.html" class="nav-link"
+          ><i class="fa-solid fa-fire-flame-curved"></i> Hot Deal | Laptop</a
+        >
+        <span class="sep"></span>
+        <a href="https://gearvn.com/blogs/all" class="nav-link"
+          ><i class="fa-solid fa-newspaper"></i> Tin tức</a
+        >
+        <span class="sep"></span>
+        <a href="./dichvu.html" class="nav-link"
+          ><i class="fa-solid fa-screwdriver-wrench"></i> Dịch vụ kỹ thuật</a
+        >
+        <span class="sep"></span>
+        <a href="./thucudoimoi.html" class="nav-link" style="color: #0076df"
+          ><i class="fa-solid fa-rotate"></i> Thu cũ đổi mới</a
+        >
+        <span class="sep"></span>
+        <a href="./tracuubaohanh.html" class="nav-link"
+          ><i class="fa-solid fa-shield-check"></i> Tra cứu bảo hành</a
+        >
+      </div>
+    </nav>
+
+    <!-- Quang cao -->
+
+    <div class="main-container-top">
+      <!-- Sidebar với banner dưới -->
+      <div class="sidebar-left">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+          <ul>
+            <li>
+              <i class="fa-solid fa-mobile-screen-button"></i>
+              <span>Điện thoại</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Iphone.html">iPhone</a></li>
+                  <li><a href="../pages/SamSung.html">Samsung</a></li>
+                </ul>
+              </div>
+            </li>
+
+            <li>
+              <i class="fa-solid fa-laptop-code"></i>
+              <span>Laptop</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Laptop.html">Dell</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-microchip"></i>
+              <span>Main, CPU, VGA</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/CPU.html">CPU AMD</a></li>
+                </ul>
+              </div>
+            </li>
+
+            <li>
+              <i class="fa-solid fa-memory"></i>
+              <span>Ổ cứng, RAM, Thẻ nhớ</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/RAM.html">RAM DDR4</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-clock"></i>
+              <span>SMARTWATCH</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/SmartWatch.html">Smart Watch</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-keyboard"></i>
+              <span>Bàn phím</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Banphim.html">Bàn phím cơ VGN</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-desktop"></i>
+              <span>Màn hình</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="../pages/Manhinh.html">Asus</a></li>
+                </ul>
+              </div>
+            </li>
+            <li>
+              <i class="fa-solid fa-hands-helping"></i>
+              <span>Dịch vụ & khác</span>
+              <div class="submenu">
+                <ul>
+                  <li><a href="./Chinhsachbaohanh.html">Bảo hành</a></li>
+                  <li><a href="./dichvu.html">Lắp ráp</a></li>
+                  <li><a href="./dichvu.html">Vệ sinh</a></li>
+                </ul>
+              </div>
+            </li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <main class="trade-page">
+      <div class="container">
+        <div class="page-title">
+          <h1>CHÍNH SÁCH CÔNG NGHỆ NEXTECH</h1>
+          <p>
+            Giải pháp tối ưu giúp bạn nâng cấp thiết bị và an tâm mua sắm với
+            chính sách bảo vệ quyền lợi khách hàng tuyệt đối.
+          </p>
+        </div>
+
+        <div class="section">
+          <h2>1. CHƯƠNG TRÌNH THU CŨ ĐỔI MỚI (TRADE-IN)</h2>
+          <div class="grid-2">
+            <div class="reason-card">
+              <strong>Giá thu mua tốt nhất</strong>
+              <p>Định giá sát với giá trị thực tế của sản phẩm.</p>
+            </div>
+            <div class="reason-card">
+              <strong>Thủ tục "siêu tốc"</strong>
+              <p>Kiểm tra và báo giá chỉ trong 15-30 phút.</p>
+            </div>
+            <div class="reason-card">
+              <strong>Trợ giá cực khủng</strong>
+              <p>Tặng thêm voucher giảm giá khi lên đời sản phẩm mới.</p>
+            </div>
+          </div>
+          <h3>Quy trình thực hiện</h3>
+          <div class="grid-4">
+            <div class="step-card">
+              <strong>Bước 1</strong>
+              <p>Tiếp nhận thông tin sản phẩm tại cửa hàng hoặc Hotline.</p>
+            </div>
+            <div class="step-card">
+              <strong>Bước 2</strong>
+              <p>
+                Kiểm tra tình trạng phần cứng bởi kỹ thuật viên UTH Service.
+              </p>
+            </div>
+            <div class="step-card">
+              <strong>Bước 3</strong>
+              <p>Báo giá chính xác và tư vấn model đổi mới.</p>
+            </div>
+            <div class="step-card">
+              <strong>Bước 4</strong>
+              <p>Thanh toán chênh lệch và nhận máy mới.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>2. CHÍNH SÁCH ĐỔI TRẢ & HOÀN TIỀN</h2>
+
+          <div class="return-policy-box">
+            <h3>1. Thời gian & Điều kiện đổi trả</h3>
+            <div class="return-item">
+              <b>07 ngày đầu tiên:</b>
+              Đổi mới 100% nếu sản phẩm có lỗi phần cứng từ nhà sản xuất.
+            </div>
+            <div class="return-item">
+              <b>Điều kiện:</b>
+              Máy còn nguyên vẹn (không trầy xước, móp méo), đầy đủ hộp, phụ
+              kiện và quà tặng kèm theo.
+            </div>
+            <div class="return-item">
+              <b>Dữ liệu:</b>
+              Khách hàng vui lòng thoát các tài khoản bảo mật (iCloud,
+              Google...) trước khi đổi trả.
+            </div>
+          </div>
+
+          <div
+            class="return-policy-box"
+            style="background: #fff0f0; border-color: #feb2b2"
+          >
+            <h3>2. Các trường hợp từ chối đổi trả</h3>
+            <div class="return-item" style="border-color: #f56565">
+              Sản phẩm bị tác động vật lý: Rơi vỡ, vào nước, cháy nổ, biến dạng.
+            </div>
+            <div class="return-item" style="border-color: #f56565">
+              Sản phẩm mất hộp hoặc trầy xước ngoại quan.
+            </div>
+            <div class="return-item" style="border-color: #f56565">
+              Lỗi do phần mềm hoặc xung đột ứng dụng (Sẽ được UTH Service hỗ trợ
+              cài đặt lại miễn phí).
+            </div>
+          </div>
+
+          <div
+            class="return-policy-box"
+            style="background: #f0fff4; border-color: #9ae6b4"
+          >
+            <h3>3. Chính sách hoàn tiền</h3>
+            <div class="return-item" style="border-color: #48bb78">
+              <b>Trường hợp:</b> Sản phẩm lỗi nhưng hết kho hàng để đổi mới.
+            </div>
+            <div class="return-item" style="border-color: #48bb78">
+              <b>Hình thức:</b> Hoàn tiền mặt tại cửa hàng hoặc chuyển khoản
+              ngân hàng.
+            </div>
+            <div class="return-item" style="border-color: #48bb78">
+              <b>Thời gian:</b> Xử lý ngay hoặc từ 1-3 ngày làm việc tùy ngân
+              hàng.
+            </div>
+          </div>
+
+          <div class="return-policy-box">
+            <h3>4. Quy trình thực hiện</h3>
+            <div class="grid-2" style="margin: 0">
+              <div class="return-item">
+                <b>Liên hệ:</b> Gọi Hotline 0947.236.123 thông báo tình trạng.
+              </div>
+              <div class="return-item">
+                <b>Kiểm tra:</b> Mang máy đến Số 2, đường Võ Oanh, P.25, Q.Bình
+                Thạnh, TP.HCM để xác nhận lỗi.
+              </div>
+            </div>
+            <div class="return-item">
+              <b>Giải quyết:</b> Đổi sản phẩm mới hoặc hoàn tiền ngay sau khi
+              kiểm tra đạt yêu cầu.
+            </div>
+          </div>
+
+          <div class="video-note">
+            Lưu ý: Quý khách vui lòng Quay Video clip mở hàng để NexTech hỗ trợ
+            đổi mới nhanh nhất nếu có sự cố do vận chuyển.
+          </div>
+        </div>
+
+        <div class="contact-box">
+          <p style="font-size: 20px; font-weight: 700; color: #1a234a">
+            TỔNG ĐÀI HỖ TRỢ
+          </p>
+          <p>
+            <strong>Địa chỉ:</strong> Số 2, Đường Võ Oanh (D3 cũ), Phường 25,
+            Quận Bình Thạnh, TP.HCM
+          </p>
+          <p>
+            <strong>Hotline/Zalo:</strong>
+            <span class="blue-text" style="font-size: 20px">0816.234.234</span>
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <!-- FOOTER (GIỮ NGUYÊN) -->
+    <footer class="main-footer">
+      <div class="container footer-grid">
+        <div class="footer-col">
+          <h3>Về Nexa Tech</h3>
+          <ul class="hover-col">
+            <li><a href="./Gioithieu.html">Giới thiệu</a></li>
+            <li><a href="./Tuyendung.html">Tuyển dụng</a></li>
+            <li><a href="./Lienhe.html">Liên hệ</a></li>
+          </ul>
+          <div class="social-links">
+            <div class="social-wrapper">
+              <p>HÃY KẾT NỐI VỚI CHÚNG TÔI</p>
+              <div class="icons">
+                <a href=""
+                  ><i class="fab fa-facebook-f" style="color: blue"></i
+                ></a>
+                <a href=""
+                  ><i class="fab fa-tiktok" style="color: black"></i
+                ></a>
+                <a href=""><i class="fab fa-youtube" style="color: red"></i></a>
+                <a href=""><i class="fas fa-users" style="color: green"></i></a>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="footer-col">
+          <h3>Chính sách</h3>
+          <ul class="hover-col">
+            <li><a href="./Chinhsachbaohanh.html">Chính sách bảo hành</a></li>
+            <li><a href="./Chinhsachgiaohang.html">Chính sách giao hàng</a></li>
+            <li><a href="./Chinhsachbaomat.html">Chính sách bảo mật</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3>Thông tin</h3>
+          <ul class="hover-col">
+            <li><a href="./Showroom.html">Hệ thống cửa hàng</a></li>
+            <li><a href="">Hướng dẫn mua hàng</a></li>
+            <li><a href="">Hướng dẫn thanh toán</a></li>
+            <li><a href="">Hướng dẫn trả góp</a></li>
+          </ul>
+        </div>
+        <div class="footer-col">
+          <h3>Tổng đài hỗ trợ</h3>
+          <ul class="contact-list">
+            <li>Mua hàng: <span class="blue-text">1900.0000</span></li>
+            <li>Bảo hành: <span class="blue-text">1900.0001</span></li>
+            <li>Khiếu nại: <span class="blue-text">1900.0002</span></li>
+            <li>Email: <span class="blue-text">hihi123@ut.edu.vn</span></li>
+          </ul>
+          <div class="partner-logo">
+            <img src="../assets/img/GHN.png" alt="Giao Hàng Nhanh" />
+          </div>
+        </div>
+      </div>
+    </footer>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/scripts.js"></script>
+    <script src="../scripts/sidebar.js"></script>
+    <script>
+      (function () {
+        const searchBtn = document.getElementById("searchBtn");
+        const searchInput = document.getElementById("searchInput");
+        if (searchBtn && searchInput) {
+          searchBtn.addEventListener("click", function () {
+            let kw = searchInput.value.trim();
+            if (kw === "") alert("Vui lòng nhập từ khóa tìm kiếm");
+            else
+              alert(
+                "Tính năng đang phát triển. Vui lòng liên hệ hotline để được tư vấn thu cũ đổi mới.",
+              );
+          });
+          searchInput.addEventListener("keypress", function (e) {
+            if (e.key === "Enter") searchBtn.click();
+          });
+        }
+      })();
+    </script>
+    <script src="../scripts/CheckLogin.js"></script>
+  </body>
+</html>
