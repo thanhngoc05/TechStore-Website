@@ -378,6 +378,56 @@ class BackendTests(unittest.TestCase):
         r = self.client.post('/api/orders', headers=self.headers, json=[])
         self.assertEqual(r.status_code, 400)
 
+    def test_reviews_update_average_and_count(self):
+        for rating in (5, 2):
+            r = self.client.post('/api/reviews/add', headers=self.headers,
+                json={'product_id': 1, 'rating': rating, 'content': '  Good product  '})
+            self.assertEqual(r.status_code, 201, r.json)
+        with backend.app.app_context():
+            product = backend.db.session.get(backend.Product, 1)
+            self.assertEqual(product.rating, 3.5)
+            self.assertEqual(product.review_count, 2)
+        reviews = self.client.get('/api/reviews/1').json
+        self.assertEqual(len(reviews), 2)
+        self.assertEqual(reviews[0]['content'], 'Good product')
+        self.assertEqual(reviews[0]['username'], 'buyer')
+
+    def test_reviews_reject_invalid_rating_and_content(self):
+        invalid = [[], {}, {'product_id': False, 'rating': 5, 'content': 'Test'}]
+        invalid += [{'product_id': 1, 'rating': rating, 'content': 'Test'}
+                    for rating in (0, 6, -1, True, 3.5, None)]
+        invalid += [{'product_id': 1, 'rating': 5, 'content': content}
+                    for content in ('', '   ', None, {}, 'x' * 5001)]
+        for body in invalid:
+            with self.subTest(body_type=type(body).__name__):
+                r = self.client.post('/api/reviews/add', headers=self.headers, json=body)
+                self.assertEqual(r.status_code, 400, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Review.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).review_count, 0)
+
+    def test_reviews_reject_missing_and_hidden_products(self):
+        for product_id in (999, 1):
+            with backend.app.app_context():
+                backend.db.session.get(backend.Product, 1).is_hidden = True
+                backend.db.session.commit()
+            r = self.client.post('/api/reviews/add', headers=self.headers,
+                json={'product_id': product_id, 'rating': 5, 'content': 'Test'})
+            self.assertEqual(r.status_code, 404, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Review.query.count(), 0)
+
+    def test_reviews_reject_locked_or_deleted_account(self):
+        payload = {'product_id': 1, 'rating': 5, 'content': 'Test'}
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='buyer').one().is_locked = True
+            backend.db.session.commit()
+        self.assertEqual(self.client.post('/api/reviews/add', headers=self.headers, json=payload).status_code, 403)
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='buyer').delete()
+            backend.db.session.commit()
+        self.assertEqual(self.client.post('/api/reviews/add', headers=self.headers, json=payload).status_code, 404)
+
 
 if __name__ == '__main__':
     unittest.main()

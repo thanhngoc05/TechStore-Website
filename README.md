@@ -55,7 +55,7 @@ Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không 
 Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
 
 ```powershell
-node --test tests/payment-return.test.cjs tests/order-detail.test.cjs
+node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs
 ```
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.

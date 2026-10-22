@@ -1007,16 +1007,27 @@ def get_public_locations():
 @app.route('/api/reviews/add', methods=['POST'])
 @jwt_required()
 def add_review():
-    data = request.get_json()
-    current_user = get_jwt_identity()
-    new_review = Review(product_id=data['product_id'], username=current_user, rating=data['rating'], content=data['content'])
-    db.session.add(new_review)
-    product = db.session.get(Product, data['product_id'])
+    user, err = _get_current_user_entity()
+    if err:
+        return err
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu đánh giá không hợp lệ"}), 400
+    try:
+        product_id = _positive_int(data.get('product_id'))
+        rating = _positive_int(data.get('rating'))
+    except (TypeError, ValueError):
+        return jsonify({"msg": "Sản phẩm và điểm sao phải là số nguyên hợp lệ"}), 400
+    content = data.get('content')
+    if rating > 5 or not isinstance(content, str) or not content.strip() or len(content) > 5000:
+        return jsonify({"msg": "Chọn từ 1 đến 5 sao và nhập nội dung tối đa 5000 ký tự"}), 400
+    product = Product.query.filter_by(id=product_id, is_hidden=False).with_for_update().first()
+    if not product:
+        return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    db.session.add(Review(product_id=product.id, username=user.username, rating=rating, content=content.strip()))
     db.session.flush()
-    all_reviews = Review.query.filter_by(product_id=product.id).all()
-    total_stars = sum([r.rating for r in all_reviews])
-    count = len(all_reviews)
-    product.rating = round(total_stars / count, 1)
+    average, count = db.session.query(func.avg(Review.rating), func.count(Review.id)).filter_by(product_id=product.id).one()
+    product.rating = round(float(average), 1)
     product.review_count = count
     db.session.commit()
     return jsonify({"msg": "Đã gửi đánh giá!"}), 201
