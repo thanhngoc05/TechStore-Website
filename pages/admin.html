@@ -1,0 +1,861 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexTech Admin - Quản trị vận hành</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="stylesheet" href="../assets/CSS/admin.css" />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+    <style>
+      /* Tối ưu giao diện đáp ứng (Responsive) và sửa lỗi tràn khi phóng to */
+      .admin-shell {
+        display: flex;
+        width: 100%;
+        min-height: 100vh;
+        overflow-x: hidden; /* Ngăn chặn cuộn ngang toàn trang */
+      }
+
+      .admin-main {
+        flex: 1;
+        min-width: 0; /* Cực kỳ quan trọng: giúp flex child co lại đúng kích thước viewport */
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      /* Tự động điều chỉnh các lưới (KPI, Chart, Split) theo chiều ngang */
+      .kpi-grid, .chart-grid, .split-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+        gap: 20px;
+        margin-bottom: 25px;
+      }
+
+      /* Xử lý thanh cuộn ngang riêng cho bảng để không làm tràn trang */
+      .table-wrap {
+        width: 100%;
+        overflow-x: auto;
+        border-radius: 8px;
+        background: #fff;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .admin-table {
+        width: 100%;
+        min-width: 800px; /* Đảm bảo bảng không bị bóp méo, buộc người dùng cuộn ngang trong khung bảng */
+      } 
+
+      /* Thanh công cụ linh hoạt (Tìm kiếm, Filter) */
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 15px;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+
+      .toolbar-left, .toolbar-right {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      /* Responsive cho cửa sổ Modal (Thêm/Sửa sản phẩm) */
+      .modal {
+        width: 95% !important;
+        max-width: 800px;
+        max-height: 90vh;
+        overflow-y: auto;
+      }
+
+      /* Nút Hamburger */
+      .hamburger-btn {
+        display: none;
+        background: #fff;
+        border: 1px solid #d9e3f4;
+        padding: 8px 12px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 1.2rem;
+        color: #1a234a;
+        margin-right: 15px;
+      }
+
+      /* Lớp phủ nền mờ khi mở Sidebar trên Mobile */
+      .sidebar-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.4);
+        z-index: 2000;
+        backdrop-filter: blur(2px);
+      }
+
+      .sidebar-overlay.active {
+        display: block;
+      }
+
+      /* Media Queries cho thiết bị nhỏ hoặc khi zoom lớn */
+      @media (max-width: 992px) {
+        .hamburger-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        .admin-sidebar {
+          position: fixed;
+          left: -270px; /* Ẩn sidebar ra khỏi màn hình */
+          top: 0;
+          bottom: 0;
+          width: 270px;
+          z-index: 3000;
+          transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: 10px 0 25px rgba(0,0,0,0.1);
+        }
+
+        .admin-sidebar.show {
+          left: 0; /* Hiện sidebar */
+        }
+
+        .topbar p {
+          display: none; /* Ẩn mô tả phụ trên mobile để gọn giao diện */
+        }
+      }
+    </style>
+  </head>
+  <body class="admin-body">
+    <div class="admin-shell">
+      <aside class="admin-sidebar">
+        <div class="brand-box">
+          <img src="../assets/img/LOGO.png" alt="NexTech" />
+        </div>
+  
+        <div class="sidebar-group">
+          <p class="sidebar-title">Điều hướng</p>
+          <button class="sidebar-link active" data-tab="dashboard">
+            <i class="fas fa-chart-pie"></i> Thống kê
+          </button>
+          <button class="sidebar-link" data-tab="products">
+            <i class="fas fa-box-open"></i> Quản lý sản phẩm
+          </button>
+          <button class="sidebar-link" data-tab="inventory">
+            <i class="fas fa-warehouse"></i> Tổng kho
+          </button>
+          <button class="sidebar-link" data-tab="users">
+            <i class="fas fa-users"></i> Quản lý người dùng
+          </button>
+          <button class="sidebar-link" data-tab="news">
+            <i class="fas fa-newspaper"></i> Tin tức / Khuyến mãi
+          </button>
+          <button class="sidebar-link" data-tab="orders">
+            <i class="fas fa-receipt"></i> Quản lý đơn hàng
+          </button>
+          <button class="sidebar-link" data-tab="warranty">
+            <i class="fas fa-shield-halved"></i> Tra cứu bảo hành
+          </button>
+          <button class="sidebar-link" data-tab="banner">
+            <i class="fas fa-images"></i> Quản lý banner
+          </button>
+          <button class="sidebar-link" data-tab="reports">
+            <i class="fas fa-chart-bar"></i> Báo cáo
+          </button>
+        </div>
+
+        <div class="sidebar-group">
+          <p class="sidebar-title">Hệ thống</p>
+          <button class="sidebar-link" id="btn-go-store">   
+            <i class="fas fa-store"></i> Thoát
+          </button>
+        </div>
+      </aside>
+
+      <main class="admin-main">
+        <header class="topbar">
+          <button class="hamburger-btn" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+          </button>
+          <div style="flex: 1;">
+            <h2 id="pageTitle">Thống kê vận hành</h2>
+            <p id="pageDesc">Theo dõi doanh thu, đơn hàng, tồn kho và cảnh báo nhanh.</p>
+          </div>
+          <div class="chip info" id="authChip"><i class="fas fa-user-shield"></i> Đang kiểm tra quyền Admin</div>
+        </header>
+
+        <section class="tab-panel active" id="panel-dashboard">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <div class="pill-tabs" id="timeFilterGroup">
+                  <button class="active" data-days="7">7 ngày</button>
+                  <button data-days="30">30 ngày</button>
+                  <button data-days="90">90 ngày</button>
+                </div>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn ghost" id="btn-refresh-dashboard"><i class="fas fa-rotate"></i> Làm mới</button>
+              </div>
+            </div>
+            <div class="kpi-grid">
+              <div class="kpi-item">
+                <div class="label">Sản phẩm đang bán</div>
+                <div class="value" id="kpiProducts">0</div>
+                <div class="hint">Toàn bộ catalog khả dụng</div>
+              </div>
+              <div class="kpi-item">
+                <div class="label">Tổng tồn kho</div>
+                <div class="value" id="kpiStock">0</div>
+                <div class="hint">Số lượng item trong kho</div>
+              </div>
+              <div class="kpi-item">
+                <div class="label">Đơn chờ xử lý</div>
+                <div class="value" id="kpiPending">0</div>
+                <div class="hint">Cần xử lý ngay</div>
+              </div>
+              <div class="kpi-item">
+                <div class="label">Doanh thu</div>
+                <div class="value" id="kpiRevenue">0đ</div>
+                <div class="hint">Đơn shipping + completed</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="chart-grid">
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Biểu đồ doanh thu giả lập theo ngày</h3>
+                <span class="chip info">UI ready, dễ thay bằng chart lib</span>
+              </div>
+              <div id="revenueChart" class="simple-chart"></div>
+              <div id="revenueLabels" class="bar-labels"></div>
+            </div>
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Cảnh báo tồn kho thấp</h3>
+              </div>
+              <div id="stockAlerts"></div>
+            </div>
+          </div>
+
+          <div class="split-grid">
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Top sản phẩm bán chạy</h3>
+              </div>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Sản phẩm</th>
+                      <th>Đã bán</th>
+                      <th>Doanh thu</th>
+                    </tr>
+                  </thead>
+                  <tbody id="topProductBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Đơn hàng gần đây</h3>
+              </div>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Mã đơn</th>
+                      <th>Khách hàng</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recentOrderBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-products">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <input class="admin-input" id="productSearch" placeholder="Tìm theo tên sản phẩm" />
+                <select class="admin-select" id="productCategoryFilter"></select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn ghost" id="btn-bulk-hide"><i class="fas fa-eye-slash"></i> Ẩn đã chọn</button>
+                <button class="btn danger" id="btn-bulk-delete"><i class="fas fa-trash"></i> Xóa đã chọn</button>
+                <button class="btn primary" id="btn-open-product-modal"><i class="fas fa-plus"></i> Thêm sản phẩm</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th><input type="checkbox" id="productSelectAll" /></th>
+                    <th>Ảnh</th>
+                    <th>Tên</th>
+                    <th>Danh mục</th>
+                    <th>Giá</th>
+                    <th>Số lượng</th>
+                    <th>Hiển thị</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="productBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-inventory">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <input class="admin-input" id="inventorySearch" placeholder="Tìm tồn kho theo tên/mã" />
+                <select class="admin-select" id="inventoryCategoryFilter"></select>
+                <select class="admin-select" id="inventoryStockFilter">
+                  <option value="all">Tất cả mức tồn</option>
+                  <option value="in-stock">Còn hàng</option>
+                  <option value="low-stock">Sắp hết (<= 5)</option>
+                  <option value="out-stock">Hết hàng</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Sản phẩm</th>
+                    <th>Danh mục</th>
+                    <th>Tồn kho</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật</th>
+                    <th>Xóa</th>
+                  </tr>
+                </thead>
+                <tbody id="inventoryBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-users">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <input class="admin-input" id="userSearch" placeholder="Tìm username/email/sđt" />
+                <div class="pill-tabs" id="userRoleTabs">
+                  <button class="active" data-role="all">Tất cả</button>
+                  <button data-role="admin">Admin</button>
+                  <button data-role="user">User</button>
+                </div>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn primary" id="btn-add-user-modal">Thêm người dùng</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Tài khoản</th>
+                    <th>Liên hệ</th>
+                    <th>Vai trò</th>
+                    <th>Trạng thái</th>
+                    <th>Tạo lúc</th>
+                    <th>Cập nhật lúc</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="userBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-news">
+          <div class="split-grid">
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Danh sách bài viết</h3>
+                <button class="btn primary" id="btn-open-news-modal"><i class="fas fa-plus"></i> Tạo bài viết</button>
+              </div>
+              <div class="toolbar">
+                <div class="toolbar-left">
+                  <input class="admin-input" id="newsSearch" placeholder="Tìm bài viết" />
+                  <select class="admin-select" id="newsStatusFilter">
+                    <option value="all">Tất cả trạng thái</option>
+                    <option value="draft">Draft</option>
+                    <option value="published">Published</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="hidden">Ẩn</option>
+                  </select>
+                </div>
+              </div>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Tiêu đề</th>
+                      <th>Trạng thái</th>
+                      <th>Lịch đăng</th>
+                      <th>Cập nhật</th>
+                      <th>Thao tác</th>
+                    </tr>
+                  </thead>
+                  <tbody id="newsBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="admin-card">
+              <div class="card-head">
+                <h3>Preview bài viết</h3>
+                <span class="chip warning">User news ready</span>
+              </div>
+              <div class="news-preview" id="newsPreview"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-orders">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <input class="admin-input" id="orderSearch" placeholder="Tìm mã đơn / khách hàng" />
+                <select class="admin-select" id="orderStatusFilter">
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="processing">Chờ xử lý</option>
+                  <option value="shipping">Đang giao</option>
+                  <option value="completed">Hoàn thành</option>
+                  <option value="cancelled">Đã hủy</option>
+                </select>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Mã đơn</th>
+                    <th>Khách hàng</th>
+                    <th>Tổng tiền</th>
+                    <th>Thanh toán</th>
+                    <th>Trạng thái</th>
+                    <th>Cập nhật trạng thái</th>
+                    <th>Hành động</th>
+                  </tr>
+                </thead>
+                <tbody id="orderBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-warranty">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-left">
+                <input class="admin-input" id="warrantySearch" placeholder="Tra cứu theo mã BH / serial / sđt" />
+                <select class="admin-select" id="warrantyStatusFilter">
+                  <option value="all">Tất cả trạng thái</option>
+                  <option value="active">Còn bảo hành</option>
+                  <option value="expired">Hết bảo hành</option>
+                  <option value="processing">Đang xử lý</option>
+                </select>
+              </div>
+              <div class="toolbar-right">
+                <button class="btn primary" id="btn-open-warranty-modal"><i class="fas fa-plus"></i> Tạo phiếu bảo hành</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>Mã BH</th>
+                    <th>Sản phẩm</th>
+                    <th>Khách hàng</th>
+                    <th>Thời hạn</th>
+                    <th>Trạng thái</th>
+                    <th>Lịch sử xử lý</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="warrantyBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-banner">
+          <div class="admin-card">
+            <div class="toolbar">
+              <div class="toolbar-right">
+                <button class="btn primary" id="btn-open-banner-modal"><i class="fas fa-plus"></i> Thêm banner</button>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Hình ảnh</th>
+                    <th>Vị trí</th>
+                    <th>Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody id="bannerBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="panel-reports">
+          <div class="admin-card">
+            <h3>Báo cáo tổng hợp</h3>
+            <div class="split-grid">
+              <div class="admin-card">
+                <h4>Doanh thu theo thời gian</h4>
+                <div class="toolbar">
+                  <select class="admin-select" id="reportPeriod">
+                    <option value="7">7 ngày</option>
+                    <option value="30">30 ngày</option>
+                    <option value="90">90 ngày</option>
+                  </select>
+                  <button class="btn primary" id="btn-export-revenue">Xuất Excel</button>
+                </div>
+                <canvas id="revenueReportChart" width="400" height="200"></canvas>
+              </div>
+              <div class="admin-card">
+                <h4>Sản phẩm bán chạy</h4>
+                <div class="table-wrap">
+                  <table class="admin-table">
+                    <thead>
+                      <tr>
+                        <th>Sản phẩm</th>
+                        <th>Đã bán</th>
+                        <th>Doanh thu</th>
+                      </tr>
+                    </thead>
+                    <tbody id="topProductsReport"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <div class="admin-card">
+              <h4>Tồn kho</h4>
+              <div class="table-wrap">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Danh mục</th>
+                      <th>Tổng sản phẩm</th>
+                      <th>Tổng tồn</th>
+                      <th>Giá trị tồn</th>
+                    </tr>
+                  </thead>
+                  <tbody id="inventoryReport"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="productModalBackdrop">
+      <div class="modal">
+        <h4 id="productModalTitle">Thêm sản phẩm</h4>
+        <div class="split-grid">
+          <div>
+            <label>Tên sản phẩm</label>
+            <input class="admin-input" id="pName" />
+          </div>
+          <div>
+            <label>Danh mục</label>
+            <select class="admin-select" id="pCategory"></select>
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Giá bán</label>
+            <input class="admin-input" id="pPrice" type="number" min="0" />
+          </div>
+          <div>
+            <label>Giá niêm yết</label>
+            <input class="admin-input" id="pOldPrice" type="number" min="0" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Số lượng tồn</label>
+            <input class="admin-input" id="pStock" type="number" min="0" />
+          </div>
+          <div>
+            <label>Ảnh sản phẩm</label>
+            <input class="admin-input" id="pImg" placeholder="Link ảnh" />
+            <input type="file" id="pImgFile" accept="image/*" style="margin-top:5px;" />
+          </div>
+        </div>
+        <div>
+          <label>Thông số (JSON key/value)</label>
+          <textarea class="admin-textarea" id="pSpecs" placeholder='{"CPU":"...","RAM":"..."}'></textarea>
+        </div>
+        <div>
+          <label>Mô tả</label>
+          <textarea class="admin-textarea" id="pDesc"></textarea>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="productModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-save-product">Lưu sản phẩm</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="newsModalBackdrop">
+      <div class="modal">
+        <h4 id="newsModalTitle">Tạo bài viết</h4>
+        <div class="split-grid">
+          <div>
+            <label>Tiêu đề</label>
+            <input class="admin-input" id="nTitle" />
+          </div>
+          <div>
+            <label>Slug</label>
+            <input class="admin-input" id="nSlug" placeholder="tu-dong-neu-bo-trong" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Trạng thái</label>
+            <select class="admin-select" id="nStatus">
+              <option value="draft">draft</option>
+              <option value="published">published</option>
+              <option value="scheduled">scheduled</option>
+              <option value="hidden">hidden</option>
+            </select>
+          </div>
+          <div>
+            <label>Lịch đăng (scheduled_at)</label>
+            <input class="admin-input" id="nScheduledAt" placeholder="YYYY-MM-DD HH:MM:SS" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Thumbnail</label>
+            <input class="admin-input" id="nThumb" />
+          </div>
+          <div>
+            <label>Banner</label>
+            <input class="admin-input" id="nBanner" />
+          </div>
+        </div>
+        <div>
+          <label>Tóm tắt</label>
+          <textarea class="admin-textarea" id="nSummary"></textarea>
+        </div>
+        <div>
+          <label>Nội dung</label>
+          <textarea class="admin-textarea" id="nContent"></textarea>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="newsModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-save-news">Lưu bài viết</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="warrantyModalBackdrop">
+      <div class="modal">
+        <h4 id="warrantyModalTitle">Tạo / cập nhật phiếu bảo hành</h4>
+        <div class="split-grid">
+          <div>
+            <label>Mã bảo hành</label>
+            <input class="admin-input" id="wCode" />
+          </div>
+          <div>
+            <label>Sản phẩm</label>
+            <input class="admin-input" id="wProduct" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Serial / IMEI</label>
+            <input class="admin-input" id="wSerial" />
+          </div>
+          <div>
+            <label>Số điện thoại</label>
+            <input class="admin-input" id="wPhone" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Ngày kích hoạt</label>
+            <input class="admin-input" id="wActivatedAt" placeholder="YYYY-MM-DD" />
+          </div>
+          <div>
+            <label>Ngày hết hạn</label>
+            <input class="admin-input" id="wExpiredAt" placeholder="YYYY-MM-DD" />
+          </div>
+        </div>
+        <div>
+          <label>Trạng thái</label>
+          <select class="admin-select" id="wStatus">
+            <option value="active">active</option>
+            <option value="processing">processing</option>
+            <option value="expired">expired</option>
+          </select>
+        </div>
+        <div>
+          <label>Lịch sử xử lý</label>
+          <textarea class="admin-textarea" id="wHistory" placeholder="Mỗi dòng là một sự kiện"></textarea>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="warrantyModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-save-warranty">Lưu bảo hành</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="bannerModalBackdrop">
+      <div class="modal">
+        <h4 id="bannerModalTitle">Thêm banner</h4>
+        <div>
+          <label>Link hình ảnh</label>
+          <input class="admin-input" id="bImg" placeholder="Link ảnh banner" />
+          <input type="file" id="bImgFile" accept="image/*" style="margin-top:5px;" />
+        </div>
+        <div>
+          <label>Vị trí</label>
+          <input class="admin-input" id="bPosition" placeholder="Ví dụ: home-slider" />
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="bannerModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-save-banner">Lưu banner</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="userModalBackdrop">
+      <div class="modal">
+        <h4 id="userModalTitle">Sửa người dùng</h4>
+        <div class="split-grid">
+          <div>
+            <label>Username</label>
+            <input class="admin-input" id="uUsername" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input class="admin-input" id="uEmail" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Số điện thoại</label>
+            <input class="admin-input" id="uPhone" />
+          </div>
+          <div>
+            <label>Vai trò</label>
+            <select class="admin-select" id="uRole">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label>Địa chỉ</label>
+          <textarea class="admin-textarea" id="uAddress"></textarea>
+        </div>
+        <div>
+          <label>
+            <input type="checkbox" id="uLocked" />
+            Khóa tài khoản
+          </label>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="userModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-save-user">Lưu người dùng</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="addUserModalBackdrop">
+      <div class="modal">
+        <h4>Thêm người dùng</h4>
+        <div class="split-grid">
+          <div>
+            <label>Username</label>
+            <input class="admin-input" id="auUsername" />
+          </div>
+          <div>
+            <label>Email</label>
+            <input class="admin-input" id="auEmail" />
+          </div>
+        </div>
+        <div class="split-grid">
+          <div>
+            <label>Mật khẩu</label>
+            <input class="admin-input" id="auPassword" type="password" />
+          </div>
+          <div>
+            <label>Vai trò</label>
+            <select class="admin-select" id="auRole">
+              <option value="user">user</option>
+              <option value="admin">admin</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="addUserModalBackdrop">Đóng</button>
+          <button class="btn success" id="btn-add-user">Thêm người dùng</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop" id="orderDetailModalBackdrop">
+      <div class="modal">
+        <h4>Chi tiết đơn hàng</h4>
+        <div id="orderDetailContent"></div>
+        <div class="modal-foot">
+          <button class="btn ghost" data-close-modal="orderDetailModalBackdrop">Đóng</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Overlay cho mobile -->
+    <div class="sidebar-overlay" id="adminSidebarOverlay"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/admin.js"></script>
+    <script>
+      // Xử lý ẩn/hiện Sidebar trên Mobile
+      document.addEventListener('DOMContentLoaded', () => {
+        const toggleBtn = document.getElementById('sidebarToggle');
+        const sidebar = document.querySelector('.admin-sidebar');
+        const overlay = document.getElementById('adminSidebarOverlay');
+
+        const toggleMenu = () => {
+          sidebar.classList.toggle('show');
+          overlay.classList.toggle('active');
+        };
+
+        toggleBtn?.addEventListener('click', toggleMenu);
+        overlay?.addEventListener('click', toggleMenu);
+
+        // Tự động đóng menu khi nhấn vào một mục điều hướng trên mobile
+        sidebar.querySelectorAll('.sidebar-link').forEach(link => {
+          link.addEventListener('click', () => {
+            if (window.innerWidth <= 992) {
+              sidebar.classList.remove('show');
+              overlay.classList.remove('active');
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
