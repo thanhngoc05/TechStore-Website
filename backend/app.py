@@ -280,6 +280,14 @@ class OrderIdempotency(db.Model):
     __table_args__ = (db.UniqueConstraint('user_id', 'key', name='uq_order_idem_user_key'),)
 
 # --- HELPERS ---
+
+def _positive_int(value):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError('Expected a positive integer')
+    result = int(value)
+    if result < 1:
+        raise ValueError('Expected a positive integer')
+    return result
 def _get_current_user_entity():
     current_username = get_jwt_identity()
     user = User.query.filter_by(username=current_username).first()
@@ -965,7 +973,7 @@ def register():
 
 @app.route('/api/public/products', methods=['GET'])
 def get_public_products():
-    prods = Product.query.all()
+    prods = Product.query.filter_by(is_hidden=False).all()
     res = {}
     for p in prods:
         if p.category not in res:
@@ -1089,18 +1097,23 @@ def add_to_cart():
     user, err = _get_current_user_entity()
     if err:
         return err
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu không hợp lệ"}), 400
     try:
-        product_id = int(data.get('product_id', 0))
-        quantity = int(data.get('quantity', 1))
+        product_id = _positive_int(data.get('product_id', 0))
+        quantity = _positive_int(data.get('quantity', 1))
     except Exception:
         return jsonify({"msg": "Dữ liệu không hợp lệ"}), 400
     if product_id <= 0 or quantity <= 0:
         return jsonify({"msg": "product_id/quantity không hợp lệ"}), 400
     p = db.session.get(Product, product_id)
-    if not p:
+    if not p or p.is_hidden:
         return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
     item = CartItem.query.filter_by(user_id=user.id, product_id=product_id).first()
+    total_quantity = (int(item.quantity) if item else 0) + quantity
+    if p.stock is not None and total_quantity > p.stock:
+        return jsonify({"msg": "Sản phẩm không đủ tồn kho"}), 409
     if item:
         item.quantity = int(item.quantity) + quantity
     else:
@@ -1115,9 +1128,11 @@ def update_cart_item(item_id):
     user, err = _get_current_user_entity()
     if err:
         return err
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu không hợp lệ"}), 400
     try:
-        quantity = int(data.get('quantity', 0))
+        quantity = _positive_int(data.get('quantity', 0))
     except Exception:
         return jsonify({"msg": "Dữ liệu không hợp lệ"}), 400
     if quantity < 1:
@@ -1125,6 +1140,11 @@ def update_cart_item(item_id):
     item = CartItem.query.filter_by(id=item_id, user_id=user.id).first()
     if not item:
         return jsonify({"msg": "Cart item không tồn tại"}), 404
+    product = db.session.get(Product, item.product_id)
+    if not product or product.is_hidden:
+        return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    if product.stock is not None and quantity > product.stock:
+        return jsonify({"msg": "Sản phẩm không đủ tồn kho"}), 409
     item.quantity = quantity
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -1148,8 +1168,12 @@ def create_order():
     user, err = _get_current_user_entity()
     if err:
         return err
-    data = request.get_json() or {}
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu đơn hàng không hợp lệ"}), 400
     customer = data.get('customer') or {}
+    if not isinstance(customer, dict):
+        return jsonify({"msg": "Dữ liệu khách hàng không hợp lệ"}), 400
     items = data.get('items')
     used_cart = False
     clear_cart_item_ids = data.get('clear_cart_item_ids')
@@ -1172,8 +1196,8 @@ def create_order():
     qty_map = {}
     try:
         for it in items:
-            pid = int(it.get('product_id', 0))
-            qty = int(it.get('quantity', 0))
+            pid = _positive_int(it.get('product_id', 0))
+            qty = _positive_int(it.get('quantity', 0))
             if pid <= 0 or qty <= 0:
                 return jsonify({"msg": "product_id/quantity không hợp lệ"}), 400
             qty_map[pid] = qty_map.get(pid, 0) + qty
@@ -1228,7 +1252,7 @@ def create_order():
         products = Product.query.filter(Product.id.in_(list(qty_map.keys()))).with_for_update().all()
         prod_map = {p.id: p for p in products}
         for pid in qty_map.keys():
-            if pid not in prod_map:
+            if pid not in prod_map or prod_map[pid].is_hidden:
                 raise ValueError('missing_product')
         for pid, qty in qty_map.items():
             p = prod_map[pid]

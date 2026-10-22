@@ -321,6 +321,63 @@ class BackendTests(unittest.TestCase):
         self.assertNotEqual(r.returncode, 0)
         self.assertIn('JWT_SECRET_KEY', r.stderr)
 
+    def test_hidden_product_is_private_and_cannot_be_ordered(self):
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).is_hidden = True
+            backend.User.query.filter_by(username='buyer').one().role = 'admin'
+            backend.db.session.commit()
+        self.assertEqual(self.client.get('/api/public/products').json, {})
+        self.assertEqual(len(self.client.get('/admin/products', headers=self.headers).json), 1)
+        self.assertEqual(self.client.post('/api/cart', headers=self.headers,
+                         json={'product_id': 1, 'quantity': 1}).status_code, 404)
+        self.assertEqual(self.order().status_code, 404)
+        with backend.app.app_context():
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.CartItem.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
+    def test_cart_add_checks_combined_quantity(self):
+        payload = {'product_id': 1, 'quantity': 3}
+        self.assertEqual(self.client.post('/api/cart', headers=self.headers, json=payload).status_code, 201)
+        self.assertEqual(self.client.post('/api/cart', headers=self.headers, json=payload).status_code, 409)
+        self.assertEqual(self.client.get('/api/cart', headers=self.headers).json[0]['quantity'], 3)
+
+    def test_cart_update_checks_stock_and_hidden_product(self):
+        r = self.client.post('/api/cart', headers=self.headers, json={'product_id': 1, 'quantity': 2})
+        url = '/api/cart/' + str(r.json['cart_item_id'])
+        self.assertEqual(self.client.put(url, headers=self.headers, json={'quantity': 6}).status_code, 409)
+        self.assertEqual(self.client.get('/api/cart', headers=self.headers).json[0]['quantity'], 2)
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).is_hidden = True
+            backend.db.session.commit()
+        self.assertEqual(self.client.put(url, headers=self.headers, json={'quantity': 1}).status_code, 404)
+
+    def test_cart_and_checkout_reject_fractional_or_boolean_quantities(self):
+        for quantity in (True, 1.5, 0, -1, '1.5', None):
+            with self.subTest(quantity=quantity):
+                r = self.client.post('/api/cart', headers=self.headers,
+                                     json={'product_id': 1, 'quantity': quantity})
+                self.assertEqual(r.status_code, 400)
+                r = self.client.post('/api/orders', headers=self.headers,
+                                     json={'items': [{'product_id': 1, 'quantity': quantity}]})
+                self.assertEqual(r.status_code, 400)
+
+    def test_hidden_product_in_existing_cart_cannot_be_checked_out(self):
+        self.client.post('/api/cart', headers=self.headers, json={'product_id': 1, 'quantity': 1})
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).is_hidden = True
+            backend.db.session.commit()
+        r = self.client.post('/api/orders', headers=self.headers, json={
+            'customer': {'name': 'Buyer', 'phone': '0900000000', 'address': 'Test'}})
+        self.assertEqual(r.status_code, 404, r.json)
+        self.assertEqual(len(self.client.get('/api/cart', headers=self.headers).json), 1)
+
+    def test_cart_rejects_malformed_json_shape(self):
+        r = self.client.post('/api/cart', headers=self.headers, json=[])
+        self.assertEqual(r.status_code, 400)
+        r = self.client.post('/api/orders', headers=self.headers, json=[])
+        self.assertEqual(r.status_code, 400)
+
 
 if __name__ == '__main__':
     unittest.main()
