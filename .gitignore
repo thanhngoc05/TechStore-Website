@@ -10,7 +10,7 @@ backend/.env.*
 
 # Python cache
 
-**pycache**/
+__pycache__/
 *.py[cod]
 *$py.class
 
