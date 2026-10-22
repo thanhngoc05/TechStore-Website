@@ -1,9 +1,11 @@
 """API regression tests with an isolated in-memory database and no external calls."""
 import os
+from io import BytesIO
 from pathlib import Path
 import secrets
 import subprocess
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -536,6 +538,39 @@ class BackendTests(unittest.TestCase):
         for body in ([], {}, {'stock': None}, {'stock': True}, {'stock': 1.5}, {'stock': -1}):
             self.assertEqual(self.client.put('/admin/inventory/update/1', headers=self.headers, json=body).status_code, 400)
         self.assertEqual(self.client.put('/admin/inventory/update/1', headers=self.headers, json={'stock': 0}).status_code, 200)
+
+    def test_upload_rejects_non_images_and_oversized_files(self):
+        self.make_admin()
+        with tempfile.TemporaryDirectory() as directory, patch.dict(backend.app.config, UPLOAD_FOLDER=directory):
+            for content in (b'<script>alert(1)</script>', b'<svg onload="alert(1)"/>', b'\x89PNG\r\n\x1a\n'):
+                r = self.client.post('/admin/upload', headers=self.headers, data={'file': (BytesIO(content), 'image.png')})
+                self.assertEqual(r.status_code, 400, r.json)
+            r = self.client.post('/admin/upload', headers=self.headers,
+                data={'file': (BytesIO(b'x' * (5 * 1024 * 1024 + 1)), 'large.png')})
+            self.assertEqual(r.status_code, 413, r.json)
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_upload_uses_content_type_and_unique_names(self):
+        self.make_admin()
+        source = BytesIO()
+        backend.PillowImage.new('RGB', (2, 2), 'red').save(source, format='PNG')
+        urls = []
+        with tempfile.TemporaryDirectory() as directory, patch.dict(backend.app.config, UPLOAD_FOLDER=directory):
+            for _ in range(2):
+                r = self.client.post('/admin/upload', headers=self.headers,
+                    data={'file': (BytesIO(source.getvalue() + b'<script>bad</script>'), '../../logo.jpg')})
+                self.assertEqual(r.status_code, 200, r.json)
+                urls.append(r.json['url'])
+            self.assertNotEqual(urls[0], urls[1])
+            for file in Path(directory).iterdir():
+                self.assertEqual(file.suffix, '.png')
+                self.assertNotIn(b'<script>', file.read_bytes())
+                with backend.PillowImage.open(file) as image:
+                    self.assertEqual(image.size, (2, 2))
+
+    def test_upload_requires_admin(self):
+        r = self.client.post('/admin/upload', headers=self.headers, data={'file': (BytesIO(b'fake'), 'x.png')})
+        self.assertEqual(r.status_code, 403)
 
 
 if __name__ == '__main__':

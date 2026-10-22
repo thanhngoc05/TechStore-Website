@@ -23,6 +23,7 @@ from flask_bcrypt import Bcrypt
 from flask_cors import CORS
 from datetime import timedelta, datetime
 from io import BytesIO
+from PIL import Image as PillowImage, UnidentifiedImageError
 import requests
 # Import PayOS
 from payos import PayOS
@@ -2133,11 +2134,32 @@ def upload_file():
     admin, err = _require_admin()
     if err:
         return err
+    limit = 5 * 1024 * 1024
+    if request.content_length and request.content_length > limit + 65536:
+        return jsonify({"msg": "Ảnh không được vượt quá 5 MB"}), 413
     if 'file' not in request.files:
         return jsonify({"msg": "No file"}), 400
     file = request.files['file']
-    filename = secure_filename(file.filename)
-    file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    content = file.read(limit + 1)
+    if len(content) > limit:
+        return jsonify({"msg": "Ảnh không được vượt quá 5 MB"}), 413
+    try:
+        with PillowImage.open(BytesIO(content)) as image:
+            image_format = image.format
+            extension = {'PNG': '.png', 'JPEG': '.jpg', 'WEBP': '.webp'}.get(image_format)
+            if not extension or image.width * image.height > 20000000:
+                return jsonify({"msg": "Chỉ nhận ảnh PNG, JPEG, WebP tối đa 20 triệu điểm ảnh"}), 400
+            image.load()
+            # Re-encode decoded pixels; do not publish arbitrary uploaded bytes.
+            output = BytesIO()
+            image.save(output, format=image_format)
+    except (UnidentifiedImageError, OSError, ValueError, PillowImage.DecompressionBombError):
+        return jsonify({"msg": "Tệp ảnh không hợp lệ hoặc bị hỏng"}), 400
+    if output.tell() > limit:
+        return jsonify({"msg": "Ảnh sau xử lý không được vượt quá 5 MB"}), 413
+    filename = uuid.uuid4().hex + extension
+    with open(os.path.join(app.config['UPLOAD_FOLDER'], filename), 'xb') as destination:
+        destination.write(output.getvalue())
     return jsonify({"url": f"../assets/img/{filename}"}), 200
 
 @app.route('/api/public/banners', methods=['GET'])

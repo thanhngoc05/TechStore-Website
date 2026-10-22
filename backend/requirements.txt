@@ -6,5 +6,6 @@ Flask-Cors>=6,<7
 PyMySQL>=1.1,<2
 requests>=2.32,<3
 reportlab>=4.4,<5
+Pillow>=12,<14
 payos>=1.1,<2
 python-dotenv>=1.1,<2
