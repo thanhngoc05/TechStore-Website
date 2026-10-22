@@ -38,6 +38,12 @@ async function loadProductDetail() {
 }
 
 // 3. Hàm hiển thị bình luận từ Database
+function escapeReviewText(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 async function loadReviews(pid) {
   try {
     const res = await fetch(window.apiUrl(`/api/reviews/${pid}`));
@@ -60,10 +66,10 @@ async function loadReviews(pid) {
         return `
             <div class="review-item" style="border-bottom: 1px solid #eee; padding: 15px 0;">
                 <div class="author" style="font-weight:bold; color:#1a234a">
-                    ${r.username} <span style="font-weight: normal; font-size: 12px; color: #999;">- ${r.date}</span>
+                    ${escapeReviewText(r.username)} <span style="font-weight: normal; font-size: 12px; color: #999;">- ${escapeReviewText(r.date)}</span>
                 </div>
                 <div class="stars" style="margin: 5px 0;">${starHtml}</div>
-                <div class="content" style="color:#444; line-height:1.5">${r.content}</div>
+                <div class="content" style="color:#444; line-height:1.5">${escapeReviewText(r.content)}</div>
             </div>`;
       })
       .join("");

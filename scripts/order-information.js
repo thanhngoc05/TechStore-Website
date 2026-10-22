@@ -21,7 +21,7 @@ function _setCheckoutOrderCode(code) {
 function _clearCheckoutOrderCode() {
   try { sessionStorage.removeItem(CHECKOUT_ORDER_CODE_KEY); } catch {}
 }
-_clearCheckoutOrderCode();
+if (!new URLSearchParams(window.location.search).has("orderCode")) _clearCheckoutOrderCode();
 
 let finalOrderDetailCache = null;
 let finalOrderDetailFetchInFlight = false;
@@ -673,21 +673,6 @@ function initPaymentUI() {
   updatePaymentUI();
 }
 
-// Xử lý URL params khi quay về từ PayOS
-function handlePayOSReturn() {
-  const urlStatus = urlParams.get('status');
-  const urlOrderCode = urlParams.get('orderCode');
-  if (urlStatus === 'PAID' && urlOrderCode) {
-    if (!_getCheckoutOrderCode()) _setCheckoutOrderCode(urlOrderCode);
-    alert("Thanh toán thành công! Đơn hàng của bạn đã được xác nhận.");
-    if (currentStep === 2) {
-      handleNext();
-    }
-  } else if (urlStatus === 'CANCELLED') {
-    alert("Thanh toán đã bị hủy. Bạn có thể chọn phương thức khác hoặc thử lại.");
-  }
-}
-
 // Điều hướng
 async function handleNext() {
   if (currentStep === 1) {
@@ -738,8 +723,10 @@ async function handleNext() {
   if (currentStep === 2) {
     const ok = await _ensureOrderCreatedBeforePayment();
     if (!ok) return;
-    // Nếu chọn PayOS, không tự động next, người dùng phải nhấn nút thanh toán và quay về
-    // Nếu đã quay về thành công, handlePayOSReturn sẽ gọi handleNext()
+    if (isWalletPaymentMethod(selectedPaymentMethod)) {
+      alert("Vui lòng thanh toán qua PayOS trước khi hoàn tất đơn hàng.");
+      return;
+    }
   }
   if (currentStep < 3) {
     toggleStep(currentStep, false);
@@ -864,13 +851,13 @@ function renderFinalOrder() {
 }
 
 // Khởi tạo khi DOM loaded
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
+  if (await window.handlePayOSReturn()) return;
   if (!isCartMode) {
     renderCartUI();
     productLoadPromise = loadProductForOrder().then(() => renderCartUI());
   }
   initPaymentUI();
-  handlePayOSReturn();
   (async () => {
     try {
       const token = localStorage.getItem("token");
