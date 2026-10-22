@@ -2019,36 +2019,37 @@ def update_user_by_admin(id):
     user = db.session.get(User, id)
     if not user:
         return jsonify({"msg": "Người dùng không tồn tại"}), 404
-    data = request.get_json() or {}
-    username = (data.get('username') or '').strip()
-    email = (data.get('email') or '').strip()
-    phone = (data.get('phone') or '').strip()
-    role = (data.get('role') or '').strip().lower()
-    address = (data.get('address') or '').strip()
-    if username:
-        dup = User.query.filter(User.username == username, User.id != user.id).first()
-        if dup:
-            return jsonify({"msg": "Username đã tồn tại"}), 400
-        user.username = username
-    if email:
-        if not _is_valid_email(email):
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu tài khoản không hợp lệ"}), 400
+    changes = {}
+    for field, limit in (('username', 80), ('email', 120), ('phone', 15), ('address', 1000)):
+        if field not in data:
+            continue
+        value = data[field]
+        if not isinstance(value, str) or len(value) > limit:
+            return jsonify({"msg": "Thông tin tài khoản không hợp lệ hoặc quá dài"}), 400
+        value = value.strip()
+        if field in ('username', 'email') and not value:
+            continue
+        if field == 'email' and not _is_valid_email(value):
             return jsonify({"msg": "Email không hợp lệ"}), 400
-        dup = User.query.filter(User.email == email, User.id != user.id).first()
-        if dup:
-            return jsonify({"msg": "Email đã tồn tại"}), 400
-        user.email = email
-    if 'phone' in data:
-        user.phone = phone or None
-    if 'address' in data:
-        user.address = address or None
-    if role in ('admin', 'user'):
-        user.role = role
-    if 'is_locked' in data:
-        if user.role == 'admin' and bool(data.get('is_locked')):
-            admin_count_unlocked = User.query.filter_by(role='admin', is_locked=False).count()
-            if admin_count_unlocked <= 1 and not user.is_locked:
-                return jsonify({"msg": "Không thể khóa admin cuối cùng"}), 400
-        user.is_locked = bool(data.get('is_locked'))
+        if field in ('username', 'email') and User.query.filter(
+                getattr(User, field) == value, User.id != user.id).first():
+            return jsonify({"msg": "Tên tài khoản hoặc email đã tồn tại"}), 400
+        changes[field] = value or None
+    role = data.get('role', user.role)
+    locked = data.get('is_locked', user.is_locked)
+    if role not in ('admin', 'user') or not isinstance(locked, bool):
+        return jsonify({"msg": "Quyền hoặc trạng thái khóa không hợp lệ"}), 400
+    if user.role == 'admin' and not user.is_locked and (role != 'admin' or locked):
+        active_admins = User.query.filter_by(role='admin', is_locked=False).order_by(User.id).with_for_update().all()
+        if len(active_admins) <= 1:
+            return jsonify({"msg": "Không thể khóa hoặc hạ quyền quản trị viên cuối cùng"}), 400
+    for field, value in changes.items():
+        setattr(user, field, value)
+    user.role = role
+    user.is_locked = locked
     user.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "OK", "user": {

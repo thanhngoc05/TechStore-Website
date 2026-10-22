@@ -464,6 +464,34 @@ class BackendTests(unittest.TestCase):
         r = self.client.post('/login', json={'username': 'buyer', 'password': 'x' * 73, 'required_role': 'user'})
         self.assertEqual(r.status_code, 400)
 
+    def test_last_admin_cannot_be_demoted_or_locked(self):
+        admin_id = self.make_admin()
+        for body in ({'role': 'user'}, {'is_locked': True}, {'role': 'user', 'is_locked': True}):
+            r = self.client.put(f'/admin/users/update/{admin_id}', headers=self.headers, json=body)
+            self.assertEqual(r.status_code, 400, r.json)
+            with backend.app.app_context():
+                admin = backend.db.session.get(backend.User, admin_id)
+                self.assertEqual(admin.role, 'admin')
+                self.assertFalse(admin.is_locked)
+
+    def test_admin_can_be_demoted_when_another_active_admin_exists(self):
+        admin_id = self.make_admin()
+        self.register('second')
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='second').one().role = 'admin'
+            backend.db.session.commit()
+        r = self.client.put(f'/admin/users/update/{admin_id}', headers=self.headers, json={'role': 'user'})
+        self.assertEqual(r.status_code, 200, r.json)
+
+    def test_admin_user_validation_does_not_partially_update(self):
+        admin_id = self.make_admin()
+        for body in ({'username': 'changed', 'email': 'invalid'}, {'is_locked': 'false'},
+                     {'role': 'superadmin'}, {'phone': 123}, []):
+            r = self.client.put(f'/admin/users/update/{admin_id}', headers=self.headers, json=body)
+            self.assertEqual(r.status_code, 400, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.User, admin_id).username, 'buyer')
+
 
 if __name__ == '__main__':
     unittest.main()
