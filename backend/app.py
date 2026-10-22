@@ -308,6 +308,39 @@ def _validated_account_input(data, allow_role=False):
         raise ValueError('Quyền tài khoản không hợp lệ')
     values.update(password=password, role=role)
     return values
+
+def _nonnegative_int(value, maximum=9223372036854775807):
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        raise ValueError('Giá và tồn kho phải là số nguyên không âm')
+    result = int(value)
+    if not 0 <= result <= maximum:
+        raise ValueError('Giá hoặc tồn kho nằm ngoài phạm vi cho phép')
+    return result
+
+
+def _validated_product_input(data, partial=False):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu sản phẩm không hợp lệ')
+    values = {}
+    for field, limit in (('name', 200), ('category', 50), ('img', 500), ('brand', 50), ('description', 100000)):
+        if partial and field not in data:
+            continue
+        value = data.get(field, '')
+        if not isinstance(value, str) or len(value) > limit:
+            raise ValueError('Thông tin sản phẩm không hợp lệ hoặc quá dài')
+        if field in ('name', 'category', 'img') and not value.strip():
+            raise ValueError('Thiếu tên, danh mục hoặc ảnh sản phẩm')
+        values[field] = value.strip()
+    for field in ('price', 'old_price', 'stock'):
+        if partial and field not in data:
+            continue
+        values[field] = _nonnegative_int(data.get(field, 0), 2147483647 if field == 'stock' else 9223372036854775807)
+    if not partial or 'specs' in data:
+        specs = data.get('specs', {})
+        if not isinstance(specs, dict):
+            raise ValueError('Thông số sản phẩm phải là một đối tượng JSON')
+        values['specs'] = json.dumps(specs, ensure_ascii=False)
+    return values
 def _get_current_user_entity():
     current_username = get_jwt_identity()
     user = User.query.filter_by(username=current_username).first()
@@ -1886,14 +1919,12 @@ def update_inventory(id):
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    if 'stock' not in data:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or 'stock' not in data:
         return jsonify({"msg": "Thiếu thông tin số lượng tồn kho"}), 400
     try:
-        new_stock = int(data['stock'])
-        if new_stock < 0:
-            return jsonify({"msg": "Số lượng không được âm"}), 400
-    except ValueError:
+        new_stock = _nonnegative_int(data['stock'], 2147483647)
+    except (ValueError, TypeError):
         return jsonify({"msg": "Số lượng phải là một con số"}), 400
     p = db.session.get(Product, id)
     if not p:
@@ -1923,8 +1954,11 @@ def add_product():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    db.session.add(Product(name=data['name'], category=data['category'], price=data['price'], old_price=data.get('old_price', 0), img=data['img'], specs=json.dumps(data['specs']), description=data.get('description', ''), stock=data.get('stock', 0), created_at=datetime.now()))
+    try:
+        data = _validated_product_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    db.session.add(Product(**data, created_at=datetime.now()))
     db.session.commit()
     return jsonify({"msg": "OK"}), 201
 
@@ -1935,15 +1969,14 @@ def update_product(id):
     if err:
         return err
     p = db.session.get(Product, id)
-    data = request.get_json()
-    p.name = data['name']
-    p.category = data['category']
-    p.price = data['price']
-    p.old_price = data.get('old_price', 0)
-    p.img = data['img']
-    p.specs = json.dumps(data['specs'])
-    p.description = data.get('description', '')
-    p.stock = data.get('stock', p.stock)
+    if not p:
+        return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    try:
+        data = _validated_product_input(request.get_json(silent=True), partial=True)
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    for field, value in data.items():
+        setattr(p, field, value)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
 
@@ -1956,7 +1989,10 @@ def delete_product(id):
     p = db.session.get(Product, id)
     if not p:
         return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    if OrderItem.query.filter_by(product_id=id).first():
+        return jsonify({"msg": "Sản phẩm đã có trong đơn hàng. Hãy ẩn thay vì xóa để giữ lịch sử."}), 409
     try:
+        CartItem.query.filter_by(product_id=id).delete()
         Review.query.filter_by(product_id=id).delete()
         db.session.delete(p)
         db.session.commit()

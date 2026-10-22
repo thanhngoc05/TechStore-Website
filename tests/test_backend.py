@@ -492,6 +492,51 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.db.session.get(backend.User, admin_id).username, 'buyer')
 
+    def test_admin_product_rejects_invalid_data(self):
+        self.make_admin()
+        valid = {'name': 'New', 'category': 'laptop', 'price': 1, 'stock': 2, 'img': 'test.png', 'specs': {}}
+        for body in ([], {}, dict(valid, price=-1), dict(valid, stock=1.5), dict(valid, price=True),
+                     dict(valid, stock=2147483648), dict(valid, name='x' * 201), dict(valid, specs=[])):
+            r = self.client.post('/admin/products/add', headers=self.headers, json=body)
+            self.assertEqual(r.status_code, 400, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Product.query.count(), 1)
+
+    def test_admin_product_partial_update_preserves_fields(self):
+        self.make_admin()
+        r = self.client.put('/admin/products/update/1', headers=self.headers, json={'price': 120000})
+        self.assertEqual(r.status_code, 200, r.json)
+        r = self.client.put('/admin/products/update/1', headers=self.headers, json={'name': 'Changed', 'stock': -1})
+        self.assertEqual(r.status_code, 400)
+        with backend.app.app_context():
+            product = backend.db.session.get(backend.Product, 1)
+            self.assertEqual(product.name, 'Test laptop')
+            self.assertEqual(product.price, 120000)
+            self.assertEqual(product.stock, 5)
+        self.assertEqual(self.client.put('/admin/products/update/999', headers=self.headers, json={}).status_code, 404)
+
+    def test_product_deletion_preserves_order_history(self):
+        self.assertEqual(self.order().status_code, 201)
+        self.make_admin()
+        self.assertEqual(self.client.delete('/admin/products/delete/1', headers=self.headers).status_code, 409)
+        with backend.app.app_context():
+            self.assertEqual(backend.OrderItem.query.count(), 1)
+            self.assertIsNotNone(backend.db.session.get(backend.Product, 1))
+
+    def test_unused_product_deletion_removes_cart_references(self):
+        self.client.post('/api/cart', headers=self.headers, json={'product_id': 1, 'quantity': 1})
+        self.make_admin()
+        self.assertEqual(self.client.delete('/admin/products/delete/1', headers=self.headers).status_code, 200)
+        with backend.app.app_context():
+            self.assertEqual(backend.CartItem.query.count(), 0)
+            self.assertEqual(backend.Product.query.count(), 0)
+
+    def test_inventory_validates_integer_stock(self):
+        self.make_admin()
+        for body in ([], {}, {'stock': None}, {'stock': True}, {'stock': 1.5}, {'stock': -1}):
+            self.assertEqual(self.client.put('/admin/inventory/update/1', headers=self.headers, json=body).status_code, 400)
+        self.assertEqual(self.client.put('/admin/inventory/update/1', headers=self.headers, json={'stock': 0}).status_code, 200)
+
 
 if __name__ == '__main__':
     unittest.main()
