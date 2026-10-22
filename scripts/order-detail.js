@@ -19,6 +19,7 @@ function getStatusText(status) {
 
 function getPaymentMethodText(method) {
   const m = String(method || "").toLowerCase();
+  if (m === "payos") return "Thanh toán qua PayOS";
   if (m === "momo") return "Ví MoMo";
   if (m === "cod") return "Thanh toán khi nhận hàng (COD)";
   if (m === "mock") return "Thanh toán (Mock)";
@@ -36,16 +37,7 @@ function getPaymentStatusText(status) {
 }
 
 function getPaymentStatusTextByMethod(status, method) {
-  const m = String(method || "").toLowerCase();
-  const s = String(status || "").toLowerCase();
-
-  // Preserve explicit failures if they exist.
-  if (s === "failed") return "Thất bại";
-
-  // Per requirement: only COD is "Chờ thanh toán"; MoMo is treated as "Đã thanh toán".
-  if (m === "cod") return "Chờ thanh toán";
-  if (m === "momo") return "Đã thanh toán";
-
+  // The payment provider does not establish whether money was received.
   return getPaymentStatusText(status);
 }
 
