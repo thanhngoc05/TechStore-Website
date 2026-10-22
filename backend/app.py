@@ -288,6 +288,26 @@ def _positive_int(value):
     if result < 1:
         raise ValueError('Expected a positive integer')
     return result
+
+def _validated_account_input(data, allow_role=False):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu tài khoản không hợp lệ')
+    values = {}
+    for field, limit in (('username', 80), ('email', 120), ('phone', 15), ('address', 1000)):
+        value = data.get(field, '')
+        if not isinstance(value, str) or len(value) > limit:
+            raise ValueError('Thông tin tài khoản không hợp lệ hoặc quá dài')
+        values[field] = value.strip()
+    password = data.get('password')
+    if not isinstance(password, str) or len(password) < 6 or len(password.encode('utf-8')) > 72:
+        raise ValueError('Mật khẩu cần ít nhất 6 ký tự và tối đa 72 byte')
+    if not values['username'] or not _is_valid_email(values['email']):
+        raise ValueError('Tên tài khoản và email không hợp lệ')
+    role = data.get('role', 'user') if allow_role else 'user'
+    if role not in ('user', 'admin'):
+        raise ValueError('Quyền tài khoản không hợp lệ')
+    values.update(password=password, role=role)
+    return values
 def _get_current_user_entity():
     current_username = get_jwt_identity()
     user = User.query.filter_by(username=current_username).first()
@@ -930,6 +950,8 @@ def login():
     required_role = data.get('required_role')
     if not isinstance(username, str) or not isinstance(password, str) or not username or not password:
         return jsonify({"msg": "Vui lòng nhập tài khoản và mật khẩu"}), 400
+    if len(username) > 80 or len(password.encode('utf-8')) > 72:
+        return jsonify({"msg": "Thông tin đăng nhập không hợp lệ"}), 400
     user = User.query.filter_by(username=username).first()
     if user and bcrypt.check_password_hash(user.password, password) and user.role == required_role:
         if user.is_locked:
@@ -940,11 +962,11 @@ def login():
 
 @app.route('/register', methods=['POST'])
 def register():
-    data = request.get_json() or {}
-    username = (data.get('username') or '').strip()
-    password = (data.get('password') or '').strip()
-    email = (data.get('email') or '').strip()
-    phone = (data.get('phone') or '').strip()
+    try:
+        data = _validated_account_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    username, password, email, phone = (data[field] for field in ('username', 'password', 'email', 'phone'))
 
     # Validate
     if not username or not password or not email:
@@ -2041,13 +2063,12 @@ def add_user():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    username = (data.get('username') or '').strip()
-    email = (data.get('email') or '').strip()
-    password = data.get('password', 'user123')
-    phone = (data.get('phone') or '').strip()
-    role = (data.get('role') or 'user').strip().lower()
-    address = (data.get('address') or '').strip()
+    try:
+        data = _validated_account_input(request.get_json(silent=True), allow_role=True)
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    username, email, password, phone, role, address = (data[field] for field in
+        ('username', 'email', 'password', 'phone', 'role', 'address'))
     if not username or not email:
         return jsonify({"msg": "Thiếu username/email"}), 400
     if User.query.filter_by(username=username).first():

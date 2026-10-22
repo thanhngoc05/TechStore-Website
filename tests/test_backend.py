@@ -22,6 +22,13 @@ from payos.types.webhooks import WebhookData
 
 
 class BackendTests(unittest.TestCase):
+    def make_admin(self):
+        with backend.app.app_context():
+            user = backend.User.query.filter_by(username='buyer').one()
+            user.role = 'admin'
+            backend.db.session.commit()
+            return user.id
+
     def setUp(self):
         backend.app.config['TESTING'] = True
         self.client = backend.app.test_client()
@@ -427,6 +434,35 @@ class BackendTests(unittest.TestCase):
             backend.User.query.filter_by(username='buyer').delete()
             backend.db.session.commit()
         self.assertEqual(self.client.post('/api/reviews/add', headers=self.headers, json=payload).status_code, 404)
+
+    def test_registration_rejects_invalid_fields(self):
+        valid = {'username': 'new', 'email': 'new@example.com', 'password': 'valid-test-password'}
+        invalid = [[], {}, dict(valid, password='short'), dict(valid, password='a' * 73),
+                   dict(valid, password='ể' * 30), dict(valid, phone=123), dict(valid, email='bad'),
+                   dict(valid, username='x' * 81), dict(valid, phone='x' * 16)]
+        for body in invalid:
+            self.assertEqual(self.client.post('/register', json=body).status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.User.query.count(), 1)
+
+    def test_public_registration_cannot_assign_admin(self):
+        r = self.client.post('/register', json={'username': 'new', 'email': 'new@example.com',
+                            'password': 'valid-test-password', 'role': 'admin'})
+        self.assertEqual(r.status_code, 201, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.User.query.filter_by(username='new').one().role, 'user')
+
+    def test_admin_creation_requires_explicit_valid_password(self):
+        self.make_admin()
+        payload = {'username': 'new', 'email': 'new@example.com'}
+        self.assertEqual(self.client.post('/admin/users/add', headers=self.headers, json=payload).status_code, 400)
+        payload['password'] = 'valid-test-password'
+        r = self.client.post('/admin/users/add', headers=self.headers, json=payload)
+        self.assertEqual(r.status_code, 201, r.json)
+
+    def test_long_login_password_is_validation_error(self):
+        r = self.client.post('/login', json={'username': 'buyer', 'password': 'x' * 73, 'required_role': 'user'})
+        self.assertEqual(r.status_code, 400)
 
 
 if __name__ == '__main__':
