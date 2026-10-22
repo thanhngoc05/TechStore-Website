@@ -270,7 +270,7 @@
       }
       setAuthChip(`Xin chào ${me.username || ""}`.trim(), "success");
       return true;
-    } catch (err) { 
+    } catch (err) {
       if (err && (err.status === 401 || err.status === 422)) {
         localStorage.removeItem("token");
         localStorage.removeItem("username");
@@ -311,7 +311,7 @@
     refs.kpiStock.textContent = String(stats.total_stock || 0);
     refs.kpiPending.textContent = String(stats.pending_orders || 0);
     refs.kpiRevenue.textContent = money(stats.revenue || 0);
-    
+
     // Load real revenue chart data
     try {
       const chartData = await api("/admin/dashboard/revenue-chart");
@@ -325,20 +325,20 @@
     // Use real revenue data from API
     const bars = [];
     const labels = [];
-    
+
     if (!state.revenueChartData || state.revenueChartData.length === 0) {
       refs.revenueChart.innerHTML = '<div style="padding:20px;text-align:center;color:#94a3b8">Chưa có dữ liệu doanh thu</div>';
       refs.revenueLabels.innerHTML = '';
       return;
     }
-    
+
     state.revenueChartData.forEach((item) => {
       const maxRevenue = Math.max(1, ...state.revenueChartData.map(x => x.revenue || 0));
       const height = maxRevenue > 0 ? Math.floor((item.revenue / maxRevenue) * 100) : 10;
       bars.push(`<div class="bar" style="height:${Math.max(10, height)}%"><span>${money(item.revenue)}</span></div>`);
       labels.push(`<div>${escapeHtml(item.date)}</div>`);
     });
-    
+
     refs.revenueChart.innerHTML = bars.join("");
     refs.revenueLabels.innerHTML = labels.join("");
   }
@@ -548,7 +548,7 @@
         <button class="btn ghost" ${state.productPage >= totalPages ? 'disabled' : ''} onclick="changeProductPage(${state.productPage + 1})">Sau</button>
       </div>
     ` : '';
-    
+
     const tableWrap = refs.productBody.closest('.table-wrap');
     const existingPagination = tableWrap.querySelector('.pagination');
     if (existingPagination) existingPagination.remove();
@@ -676,11 +676,11 @@
         productSales[key].revenue += Number(item.subtotal || (item.price * item.quantity) || 0);
       });
     });
-    
+
     const topProducts = Object.values(productSales)
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10);
-    
+
     refs.topProductsReport.innerHTML = topProducts.length
       ? topProducts.map(p => `<tr><td>${escapeHtml(p.name)}</td><td>${p.sold}</td><td>${money(p.revenue)}</td></tr>`).join('')
       : '<tr><td colspan="3">Chưa có dữ liệu</td></tr>';
@@ -694,7 +694,7 @@
       inventoryStats[cat].stock += Number(p.stock || 0);
       inventoryStats[cat].value += Number(p.stock || 0) * Number(p.price || 0);
     });
-    
+
     refs.inventoryReport.innerHTML = Object.entries(inventoryStats)
       .map(([cat, stats]) => `<tr><td>${escapeHtml(cat)}</td><td>${stats.count}</td><td>${stats.stock}</td><td>${money(stats.value)}</td></tr>`)
       .join('');
@@ -707,9 +707,9 @@
     const period = Number(refs.reportPeriod.value || 30);
     // For now, use same data as dashboard, but could be extended to fetch different periods
     const data = state.revenueChartData.slice(-period);
-    
+
     if (!refs.revenueReportChart || !data.length) return;
-    
+
     const ctx = refs.revenueReportChart.getContext('2d');
     new Chart(ctx, {
       type: 'line',
@@ -743,7 +743,7 @@
   async function exportRevenueReport() {
     const period = Number(refs.reportPeriod.value || 30);
     const data = state.revenueChartData.slice(-period);
-    
+
     if (!data.length) {
       alert('Không có dữ liệu để xuất');
       return;
@@ -1026,13 +1026,13 @@
         method: "PUT",
         headers: { "Content-Type": "application/json" },
       });
-      
+
       // Update local state
       const product = state.products.find((p) => p.id === id);
       if (product) {
         product.is_hidden = res.is_hidden;
       }
-      
+
       renderProducts();
     } catch (err) {
       alert(`Lỗi cập nhật: ${err.message || "Unknown error"}`);
@@ -1836,7 +1836,7 @@
             state.newItems.orders = new Set(newOrders.map(o => o.order_code));
             playNotifySound();
             showAdminToast(`Bạn có ${newOrders.length} đơn hàng mới cần xử lý!`, "fa-shopping-cart");
-            
+
             if (state.activeTab === "orders") renderOrders();
             if (state.activeTab === "dashboard") renderDashboard();
           } else {

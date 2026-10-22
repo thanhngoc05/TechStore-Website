@@ -25,8 +25,7 @@
   //   window.API_BASE = "http://127.0.0.1:5000";
   const defaultBase = computeDefaultBase();
   if (typeof window.API_BASE !== "string" || window.API_BASE.trim() === "") {
-    // Bỏ qua computeDefaultBase, luôn dùng origin nếu có, không thì fallback 5001
-    window.API_BASE = window.location.origin || "http://127.0.0.1:5001";
+    window.API_BASE = defaultBase;
   }
 
   window.apiUrl = function apiUrl(path) {
