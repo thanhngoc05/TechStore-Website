@@ -469,8 +469,7 @@ def _send_email_if_configured(to_email: str, subject: str, body: str, reply_to_o
     smtp_ready = bool(smtp_host and smtp_user and smtp_pass and smtp_from)
 
     email_mode = (os.getenv('EMAIL_MODE') or '').strip().lower()
-    email_mode_force = (os.getenv('EMAIL_MODE_FORCE') or '').strip().lower() in ('1', 'true', 'yes')
-    if email_mode in ('file', 'console') and (email_mode_force or not smtp_ready):
+    if email_mode in ('file', 'console'):
         try:
             msg = EmailMessage()
             msg['To'] = to_email

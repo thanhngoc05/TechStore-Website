@@ -1,6 +1,8 @@
 """API regression tests with an isolated in-memory database and no external calls."""
 import os
 from io import BytesIO
+from email.parser import BytesParser
+from email.policy import default as email_policy
 from pathlib import Path
 import secrets
 import subprocess
@@ -580,6 +582,43 @@ class BackendTests(unittest.TestCase):
     def test_upload_requires_admin(self):
         r = self.client.post('/admin/upload', headers=self.headers, data={'file': (BytesIO(b'fake'), 'x.png')})
         self.assertEqual(r.status_code, 403)
+
+    def test_file_email_mode_never_uses_smtp_even_when_configured(self):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {
+            'EMAIL_MODE': 'file', 'EMAIL_FILE_DIR': directory, 'SMTP_HOST': 'smtp.example.com',
+            'SMTP_USER': 'sender@example.com', 'SMTP_PASS': 'test-only', 'SMTP_FROM': 'sender@example.com',
+        }), patch.object(backend.smtplib, 'SMTP') as smtp, patch.object(backend.smtplib, 'SMTP_SSL') as smtp_ssl:
+            sent, error = backend._send_email_if_configured('recipient@example.com', 'Kiểm tra', 'Nội dung tiếng Việt')
+            self.assertTrue(sent)
+            self.assertIsNone(error)
+            smtp.assert_not_called()
+            smtp_ssl.assert_not_called()
+            files = list(Path(directory).glob('*.eml'))
+            self.assertEqual(len(files), 1)
+            message = BytesParser(policy=email_policy).parsebytes(files[0].read_bytes())
+            self.assertEqual(message['To'], 'recipient@example.com')
+            self.assertIn('Nội dung tiếng Việt', message.get_content())
+
+    def test_smtp_transport_uses_tls_and_correct_recipient(self):
+        with patch.dict(os.environ, {'EMAIL_MODE': 'smtp', 'SMTP_HOST': 'smtp.example.com',
+            'SMTP_USER': 'sender@example.com', 'SMTP_PASS': 'test-only', 'SMTP_FROM': 'sender@example.com',
+            'SMTP_ENVELOPE_FROM': 'sender@example.com', 'SMTP_TLS': '1', 'SMTP_SSL': '0', 'SMTP_PORT': '587',
+        }), patch.object(backend.smtplib, 'SMTP') as smtp:
+            sent, error = backend._send_email_if_configured('recipient@example.com', 'Test', 'Message')
+            self.assertTrue(sent)
+            self.assertIsNone(error)
+            server = smtp.return_value.__enter__.return_value
+            server.starttls.assert_called_once()
+            server.login.assert_called_once_with('sender@example.com', 'test-only')
+            self.assertEqual(server.send_message.call_args.kwargs['to_addrs'], ['recipient@example.com'])
+
+    def test_database_reset_guard_rejects_application_database(self):
+        env = dict(os.environ, TECHSTORE_TEST_DATABASE_URI='mysql+pymysql://test:test@127.0.0.1/production',
+                   TECHSTORE_ALLOW_DATABASE_RESET='1')
+        result = subprocess.run([sys.executable, '-c', 'import test_backend'], cwd=ROOT / 'tests',
+                                env=env, capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Tests may reset only', result.stderr)
 
 
 if __name__ == '__main__':

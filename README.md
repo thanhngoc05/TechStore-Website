@@ -60,7 +60,30 @@ node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/prod
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.
 
-GitHub Actions tự chạy bộ kiểm tra khi backend thay đổi. MySQL, SMTP và giao dịch payOS thật cần được kiểm tra riêng trước khi triển khai.
+GitHub Actions chạy kiểm tra API trên SQLite và một MySQL 8.4 riêng, đồng thời kiểm tra giao diện, đường dẫn nội bộ và nội dung email thử. SMTP được giả lập khi kiểm tra: không có email thật hoặc giao dịch payOS thật.
+
+Để chạy kiểm tra MySQL trên máy, chuẩn bị database riêng tên `techstore_test`, cấp quyền cho tài khoản thử và chạy:
+
+```powershell
+$env:TECHSTORE_TEST_DATABASE_URI = 'mysql+pymysql://test_user:test_password@127.0.0.1:3306/techstore_test'
+$env:TECHSTORE_ALLOW_DATABASE_RESET = '1'
+.venv/Scripts/python.exe -m unittest discover -s tests -v
+Remove-Item Env:TECHSTORE_TEST_DATABASE_URI
+Remove-Item Env:TECHSTORE_ALLOW_DATABASE_RESET
+```
+
+Dòng đầu chọn database thử với thông tin tài khoản do bạn tạo. Dòng thứ hai cho phép bộ kiểm tra xóa và tạo lại các bảng của database thử. Lệnh thứ ba chạy kiểm tra; hai lệnh cuối gỡ cấu hình thử khỏi phiên terminal. Bộ kiểm tra từ chối database tên khác hoặc máy chủ ngoài `localhost`/`127.0.0.1`.
+
+## Quy tắc dữ liệu
+
+- Mật khẩu tài khoản tối thiểu 6 ký tự và tối đa 72 byte UTF-8; tài khoản do quản trị viên tạo cần mật khẩu được nhập rõ ràng.
+- Không thể khóa hoặc hạ quyền quản trị viên hoạt động cuối cùng.
+- Giá và tồn kho phải là số nguyên không âm; cập nhật một phần giữ nguyên các trường còn lại.
+- Sản phẩm đã nằm trong đơn hàng được giữ lại để bảo toàn lịch sử; có thể ẩn khi ngừng bán.
+- Ảnh tải lên chỉ nhận PNG, JPEG và WebP hợp lệ, tối đa 5 MB và 20 triệu điểm ảnh. Ảnh được xử lý lại và đặt tên riêng.
+- `EMAIL_MODE=file` luôn lưu email cục bộ, kể cả khi có sẵn cấu hình SMTP.
+
+Trước khi triển khai, vẫn cần kiểm tra dữ liệu chuyển đổi trên bản sao database, thao tác trong trình duyệt, SMTP và payOS thật.
 
 ## Cấu trúc
 

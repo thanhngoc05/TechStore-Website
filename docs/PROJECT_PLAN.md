@@ -17,11 +17,16 @@
 - Profile endpoints reject locked/deleted accounts, validate input before changing data and preserve contact details during password-only updates.
 - Hidden products are excluded from the public catalog and rejected at cart/checkout; cart additions and updates respect available stock.
 - Review submission validates ratings, product availability and account access; review text is escaped when rendered to prevent inserted HTML from running.
+- Account creation validates lengths/passwords and has no default user password; the last active administrator cannot be demoted or locked.
+- Product/inventory validation rejects invalid numeric data and deletion preserves products referenced by order history.
+- Uploads decode and re-encode actual PNG/JPEG/WebP images, enforce limits and use unique names.
+- GitHub Actions runs the API suite against an isolated MySQL 8.4 service as well as SQLite; reset guards reject application databases.
+- Explicit file email mode never sends through SMTP; email transport is checked with mocks and all local HTML href/src targets are checked automatically.
 
 ## Remaining integration work
 
 - Merge the frontend batch before the backend batch.
-- Run the suite against a dedicated MySQL test database and verify schema updates on a copy of existing data.
+- Verify schema updates on a copy of existing MySQL data; the CI service starts with a clean database.
 - Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
