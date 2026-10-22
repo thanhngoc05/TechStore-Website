@@ -9,11 +9,19 @@ import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from sqlalchemy.engine import make_url
 
 ROOT = Path(__file__).resolve().parents[1]
 os.environ['JWT_SECRET_KEY'] = secrets.token_urlsafe(48)
-os.environ['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-os.environ['USE_SQLITE'] = '1'
+test_uri = os.getenv('TECHSTORE_TEST_DATABASE_URI', 'sqlite:///:memory:')
+if test_uri != 'sqlite:///:memory:':
+    parsed = make_url(test_uri)
+    if (os.getenv('TECHSTORE_ALLOW_DATABASE_RESET') != '1'
+            or parsed.drivername != 'mysql+pymysql' or parsed.database != 'techstore_test'
+            or parsed.host not in ('localhost', '127.0.0.1')):
+        raise RuntimeError('Tests may reset only an explicitly authorized local techstore_test database.')
+os.environ['SQLALCHEMY_DATABASE_URI'] = test_uri
+os.environ['USE_SQLITE'] = '1' if test_uri.startswith('sqlite:') else '0'
 for key in ('ADMIN_USERNAME', 'ADMIN_EMAIL', 'ADMIN_PASSWORD', 'PAYOS_CLIENT_ID',
             'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY'):
     os.environ[key] = ''
@@ -86,9 +94,10 @@ class BackendTests(unittest.TestCase):
                 response.close()
 
     def test_public_apis(self):
-        for url in ('/api/public/products', '/api/public/news', '/api/public/banners', '/api/public/locations'):
-            with self.subTest(url=url):
-                self.assertEqual(self.client.get(url).status_code, 200)
+        with patch.object(backend.urllib.request, 'urlopen', return_value=BytesIO(b'[]')):
+            for url in ('/api/public/products', '/api/public/news', '/api/public/banners', '/api/public/locations'):
+                with self.subTest(url=url):
+                    self.assertEqual(self.client.get(url).status_code, 200)
 
     def test_login_validation(self):
         for body in ({}, [], {'username': 'buyer'}, {'username': 'buyer', 'password': 123}):
