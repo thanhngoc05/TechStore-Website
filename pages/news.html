@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tin tức NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/styles.css" />
+    <link rel="stylesheet" href="../assets/CSS/news.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link rel="icon" href="../assets/img/LOGO1.png" type="image/x-icon" />
+  </head>
+  <body class="news-body">
+    <div class="sidebar-overlay"></div>
+    <div class="header-promotion">
+      <button class="promo-button">MUA LAPTOP</button>
+      <span class="promo-text"><span class="promo-brand">NXT</span> | TẶNG MÀN OLED 240Hz</span>
+    </div>
+
+    <header class="main-header">
+      <div class="container header-content">
+        <div class="logo">
+          <a href="index.html"><img src="../assets/img/LOGO.png" alt="NexTech" class="logo-img" /></a>
+        </div>
+        <div class="category-btn"><i class="fas fa-bars"></i> Danh mục</div>
+        <div class="search-bar">
+          <input type="text" id="searchInput" placeholder="Bạn cần tìm gì?" autocomplete="off" />
+          <button type="button" id="searchBtn"><i class="fas fa-search"></i></button>
+          <div id="searchDropdown" class="search-dropdown"></div>
+        </div>
+        <div class="header-tools">
+          <a href="tel:19001234" class="tool-item"><i class="fas fa-phone-alt"></i><div class="text"><span>Hotline</span><strong>1900.1234</strong></div></a>
+          <a href="./Showroom.html" class="tool-item"><i class="fas fa-map-marker-alt"></i><div class="text"><span>Hệ thống</span><strong>cửa hàng</strong></div></a>
+          <a href="./Tra_cuu.html" class="tool-item"><i class="fas fa-box"></i><div class="text"><span>Tra cứu</span><strong>đơn hàng</strong></div></a>
+          <div id="user-account" class="user-account"><a href="./login.html" class="login-btn" id="user-display"><i class="fas fa-user-circle"></i><span>Đăng nhập</span></a></div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="sub-nav">
+      <div class="container sub-nav-flex">
+        <a href="./Laptop.html" class="nav-link"><i class="fa-solid fa-tags"></i> Mua Laptop tặng màn 240Hz</a>
+        <span class="sep"></span>
+        <a href="./Hotdeal.html" class="nav-link"><i class="fa-solid fa-fire-flame-curved"></i> Hot Deal | Laptop</a>
+        <span class="sep"></span>
+        <a href="./news.html" class="nav-link"><i class="fa-solid fa-newspaper"></i> Tin tức</a>
+        <span class="sep"></span>
+        <a href="./dichvu.html" class="nav-link"><i class="fa-solid fa-screwdriver-wrench"></i> Dịch vụ kỹ thuật</a>
+        <span class="sep"></span>
+        <a href="./thucudoimoi.html" class="nav-link"><i class="fa-solid fa-rotate"></i> Thu cũ đổi mới</a>
+        <span class="sep"></span>
+        <a href="./tracuubaohanh.html" class="nav-link"><i class="fa-solid fa-shield-check"></i> Tra cứu bảo hành</a>
+      </div>
+    </nav>
+
+    <main class="news-main">
+      <div class="container news-layout">
+        <section>
+          <div class="news-list" id="newsList"></div>
+        </section>
+        <aside class="news-side">
+          <div class="news-box">
+            <h4>Từ Admin Console</h4>
+            <p style="margin:0;color:#475569;font-size:14px;line-height:1.5;">Bài viết được điều phối từ màn Quản lý Tin tức. Chỉ bài viết trạng thái published mới hiển thị tại đây.</p>
+          </div>
+          <div class="news-box">
+            <h4>Tìm nhanh</h4>
+            <input id="newsFilterInput" class="admin-input" placeholder="Tìm bài viết" />
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/scripts.js"></script>
+    <script src="../scripts/sidebar.js"></script>
+    <script src="../scripts/CheckLogin.js"></script>
+    <script src="../scripts/news.js"></script>
+  </body>
+</html>
