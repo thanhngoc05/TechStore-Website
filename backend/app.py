@@ -1500,13 +1500,19 @@ def create_payment():
     if err:
         return err
 
-    data = request.get_json() or {}
-    order_code = (data.get('order_code') or '').strip()
-    provider = (data.get('provider') or 'cod').strip().lower()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu thanh toán không hợp lệ"}), 400
+    order_code = data.get('order_code') or ''
+    provider = data.get('provider') or 'cod'
+    if not isinstance(order_code, str) or not isinstance(provider, str):
+        return jsonify({"msg": "Mã đơn hàng hoặc phương thức thanh toán không hợp lệ"}), 400
+    order_code = order_code.strip()
+    provider = provider.strip().lower()
     if provider in ('momo', 'payos'):
         provider = 'payos'
     if provider not in ('payos', 'cod'):
-        provider = 'cod'
+        return jsonify({"msg": "Phương thức thanh toán không được hỗ trợ"}), 400
 
     if not order_code:
         return jsonify({"msg": "Thiếu order_code"}), 400
@@ -1514,6 +1520,14 @@ def create_payment():
     order = Order.query.filter_by(order_code=order_code, user_id=user.id).first()
     if not order:
         return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+
+    if order.status != 'processing':
+        return jsonify({"msg": "Chỉ tạo thanh toán cho đơn đang xử lý"}), 409
+    if Payment.query.filter_by(order_id=order.id, status='success').first():
+        return jsonify({"msg": "Đơn hàng đã được thanh toán"}), 409
+    expected_provider = 'payos' if order.payment_method in ('payos', 'momo') else 'cod'
+    if provider != expected_provider:
+        return jsonify({"msg": "Phương thức thanh toán không khớp với đơn hàng"}), 409
 
     # Xử lý COD
     if provider == 'cod':

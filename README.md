@@ -52,6 +52,14 @@ Lần chạy đầu tạo bảng và dữ liệu minh họa. Máy chủ Flask t�
 
 Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không dùng dữ liệu cá nhân, không chuyển tiền và không gửi email thật. Lệnh thứ hai kiểm tra tính tương thích giữa các thư viện đã cài.
 
+Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
+
+```powershell
+node --test tests/payment-return.test.cjs
+```
+
+Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL và lỗi kết nối. Không gọi dịch vụ thanh toán thật.
+
 GitHub Actions tự chạy bộ kiểm tra khi backend thay đổi. MySQL, SMTP và giao dịch payOS thật cần được kiểm tra riêng trước khi triển khai.
 
 ## Cấu trúc

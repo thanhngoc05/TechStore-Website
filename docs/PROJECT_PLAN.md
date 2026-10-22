@@ -11,6 +11,8 @@
 - Frontend JavaScript syntax and local references across 31 HTML pages.
 - Isolated SQLite API tests for authentication, authorization, cart, stock, order cancellation and public endpoints.
 - Payment tests use a real SDK signature verifier and mocked provider responses; no money moves.
+- Checkout return handling verifies payment through the authenticated API, with nine JavaScript regression scenarios.
+- Payment creation rejects paid, cancelled or fulfilled orders, invalid methods and changes to an order's payment method; repeated COD requests reuse the pending payment.
 
 ## Remaining integration work
 

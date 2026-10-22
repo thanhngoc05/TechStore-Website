@@ -199,6 +199,65 @@ class BackendTests(unittest.TestCase):
                 json={'payment_ref': '123456', 'result': 'success'}).status_code, 503)
         self.assertEqual(self.payment_state(), ('pending', 'processing'))
 
+    def test_payment_creation_rejects_non_processing_orders(self):
+        code = self.order().json['order_code']
+        for status in ('cancelled', 'shipping', 'completed'):
+            with self.subTest(status=status):
+                with backend.app.app_context():
+                    backend.Order.query.one().status = status
+                    backend.db.session.commit()
+                r = self.client.post('/api/payment/create', headers=self.headers,
+                                     json={'order_code': code, 'provider': 'cod'})
+                self.assertEqual(r.status_code, 409, r.json)
+                with backend.app.app_context():
+                    self.assertEqual(backend.Payment.query.count(), 0)
+
+    def test_payment_creation_rejects_paid_order(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        r = self.client.post('/api/payment/create', headers=self.headers,
+                             json={'order_code': code, 'provider': 'payos'})
+        self.assertEqual(r.status_code, 409, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Payment.query.count(), 1)
+            self.assertEqual(backend.Payment.query.one().status, 'success')
+
+    def test_payment_creation_rejects_method_switch(self):
+        code = self.pending_payment()
+        r = self.client.post('/api/payment/create', headers=self.headers,
+                             json={'order_code': code, 'provider': 'cod'})
+        self.assertEqual(r.status_code, 409, r.json)
+        self.assertEqual(self.payment_state(), ('pending', 'processing'))
+
+    def test_payment_creation_reuses_pending_cod(self):
+        code = self.order().json['order_code']
+        payload = {'order_code': code, 'provider': 'cod'}
+        first = self.client.post('/api/payment/create', headers=self.headers, json=payload)
+        second = self.client.post('/api/payment/create', headers=self.headers, json=payload)
+        self.assertEqual(first.status_code, 201, first.json)
+        self.assertEqual(second.status_code, 200, second.json)
+        self.assertEqual(first.json['payment_ref'], second.json['payment_ref'])
+        with backend.app.app_context():
+            self.assertEqual(backend.Payment.query.count(), 1)
+
+    def test_payment_creation_rejects_other_buyer(self):
+        code = self.order().json['order_code']
+        self.register('other')
+        r = self.client.post('/api/payment/create', headers=self.login('other'),
+                             json={'order_code': code, 'provider': 'cod'})
+        self.assertEqual(r.status_code, 404, r.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Payment.query.count(), 0)
+
+    def test_payment_creation_validates_input(self):
+        for body in ([], {}, {'order_code': 1}, {'order_code': 'ORD', 'provider': 1},
+                     {'order_code': 'ORD', 'provider': 'unknown'}):
+            with self.subTest(body=body):
+                r = self.client.post('/api/payment/create', headers=self.headers, json=body)
+                self.assertEqual(r.status_code, 400, r.json)
+
     def test_password_unchanged_when_email_fails(self):
         with patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
             r = self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'})
