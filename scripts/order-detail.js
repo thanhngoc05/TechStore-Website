@@ -181,18 +181,7 @@ function renderOrderActions(detail) {
   const canCancel = status === "processing";
   const isCompleted = status === "completed";
 
-  const paymentMethod = String(detail.payment_method || "").toLowerCase();
-  const p1 = detail && detail.payment_initial ? detail.payment_initial : null;
-  const p2 = detail && detail.payment_latest ? detail.payment_latest : null;
-  const p3 = detail && detail.payment ? detail.payment : null;
-  const provider1 = String((p1 && p1.provider) || "").toLowerCase();
-  const provider2 = String((p2 && p2.provider) || "").toLowerCase();
-  const provider3 = String((p3 && p3.provider) || "").toLowerCase();
-  const isMomo =
-    paymentMethod === "momo" ||
-    provider1 === "momo" ||
-    provider2 === "momo" ||
-    provider3 === "momo";
+  const requiresRefund = detail.requires_refund === true;
 
   const actionsEl = document.createElement("div");
   actionsEl.className = "od-actions";
@@ -233,9 +222,9 @@ function renderOrderActions(detail) {
       ?.addEventListener("click", async () => {
         if (!code) return;
 
-        // MoMo orders: open refund request form instead of cancelling immediately.
-        if (isMomo) {
-          const nextUrl = `/momo-cancel.html?order_code=${encodeURIComponent(code)}`;
+        // Paid online orders need support review before cancellation.
+        if (requiresRefund) {
+          const nextUrl = `momo-cancel.html?order_code=${encodeURIComponent(code)}`;
           window.location.href = nextUrl;
           return;
         }

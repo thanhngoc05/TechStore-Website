@@ -685,6 +685,27 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(r.status_code, 502, r.json)
         self.assertEqual(self.payment_state(), ('success', 'processing'))
 
+    def test_paid_online_order_requires_refund_before_cancellation(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        detail = self.client.get('/api/orders/' + code, headers=self.headers)
+        self.assertTrue(detail.json['requires_refund'])
+        r = self.client.put('/api/orders/' + code + '/cancel', headers=self.headers)
+        self.assertEqual(r.status_code, 409, r.json)
+        self.assertTrue(r.json['requires_refund'])
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+
+    def test_unpaid_online_order_can_be_cancelled_without_refund(self):
+        code = self.pending_payment()
+        self.assertFalse(self.client.get('/api/orders/' + code, headers=self.headers).json['requires_refund'])
+        r = self.client.put('/api/orders/' + code + '/cancel', headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.json)
+        self.assertEqual(self.payment_state(), ('failed', 'cancelled'))
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1538,6 +1538,7 @@ def get_order_detail(order_code):
         "payment_initial": _payment_payload(initial_payment) or derived_initial,
         "payment_latest": _payment_payload(last_payment),
         "payments_count": len(payments),
+        "requires_refund": _refundable_payment(order) is not None,
     }), 200
 
 @app.route('/api/orders/<string:order_code>/cancel', methods=['PUT'])
@@ -1559,6 +1560,9 @@ def cancel_my_order(order_code):
             order = Order.query.filter_by(order_code=order_code, user_id=user.id).with_for_update().first()
             if not order:
                 return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+            if _refundable_payment(order):
+                return jsonify({"msg": "Đơn đã thanh toán trực tuyến. Vui lòng gửi yêu cầu hoàn tiền để được hỗ trợ.",
+                                "requires_refund": True}), 409
             try:
                 items = OrderItem.query.filter_by(order_id=order.id).all()
                 item_lines = []

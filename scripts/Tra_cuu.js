@@ -533,34 +533,17 @@ function bindCancelOrderHandler() {
     const orderCode = (btn.getAttribute("data-cancel-order") || "").trim();
     if (!orderCode) return;
 
-    // For MoMo orders: open refund request form instead of cancelling immediately.
-    const meta = (cachedOrders || []).find((o) => o && o.orderCode === orderCode);
-    let method = String((meta && meta.paymentMethod) || "").toLowerCase();
-    let isMomo = method === "momo";
-
-    // If we couldn't determine from cache (legacy orders), fetch detail to infer.
-    if (!isMomo) {
-      try {
-        const token = requireLoginForBE2();
-        if (!token) return;
-        const detail = await fetchOrderDetail(token, orderCode);
-        const pm = String((detail && detail.payment_method) || "").toLowerCase();
-        const p1 = detail && detail.payment_initial ? detail.payment_initial : null;
-        const p2 = detail && detail.payment_latest ? detail.payment_latest : null;
-        const p3 = detail && detail.payment ? detail.payment : null;
-        const pr1 = String((p1 && p1.provider) || "").toLowerCase();
-        const pr2 = String((p2 && p2.provider) || "").toLowerCase();
-        const pr3 = String((p3 && p3.provider) || "").toLowerCase();
-        isMomo = pm === "momo" || pr1 === "momo" || pr2 === "momo" || pr3 === "momo";
-        method = pm || method;
-      } catch {
-        // ignore and fall back to normal cancel
+    // Check current server state; never infer payment from its provider name.
+    const accessToken = requireLoginForBE2();
+    if (!accessToken) return;
+    try {
+      const detail = await fetchOrderDetail(accessToken, orderCode);
+      if (detail.requires_refund === true) {
+        window.location.href = `momo-cancel.html?order_code=${encodeURIComponent(orderCode)}`;
+        return;
       }
-    }
-
-    if (isMomo) {
-      const nextUrl = `momo-cancel.html?order_code=${encodeURIComponent(orderCode)}`;
-      window.location.href = nextUrl;
+    } catch (error) {
+      alert("Không tải được trạng thái đơn hàng. Vui lòng thử lại.");
       return;
     }
 
