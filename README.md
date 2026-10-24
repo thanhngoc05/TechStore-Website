@@ -55,7 +55,7 @@ Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không 
 Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
 
 ```powershell
-node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs
+node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs
 ```
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.
@@ -82,6 +82,14 @@ Dòng đầu chọn database thử với thông tin tài khoản do bạn tạo.
 - Sản phẩm đã nằm trong đơn hàng được giữ lại để bảo toàn lịch sử; có thể ẩn khi ngừng bán.
 - Ảnh tải lên chỉ nhận PNG, JPEG và WebP hợp lệ, tối đa 5 MB và 20 triệu điểm ảnh. Ảnh được xử lý lại và đặt tên riêng.
 - `EMAIL_MODE=file` luôn lưu email cục bộ, kể cả khi có sẵn cấu hình SMTP.
+
+## Yêu cầu hoàn tiền
+
+Chủ đơn đăng nhập rồi mở yêu cầu hoàn tiền từ chi tiết hoặc trang tra cứu đơn hàng. Chỉ đơn có thanh toán trực tuyến thành công mới gửi được yêu cầu; dữ liệu thanh toán được đối chiếu ở backend.
+
+Biểu mẫu gửi thông tin cho bộ phận hỗ trợ qua `CONTACT_TO_EMAIL`. Thông báo gửi thành công chỉ xác nhận đã gửi yêu cầu: tiền chưa được hoàn, đơn chưa bị hủy và tồn kho chưa được cộng lại. Bộ phận hỗ trợ cần kiểm tra giao dịch và xử lý hoàn tiền riêng.
+
+Đơn online chưa thanh toán vẫn có thể hủy bình thường. Đơn đã thanh toán online cần được hỗ trợ duyệt hoàn tiền trước khi hủy; API trả mã 409 và thông tin `requires_refund` cho trường hợp này. Đường dẫn API hoàn tiền cũ `/api/public/refund-request` được giữ để tương thích nhưng hiện yêu cầu đăng nhập.
 
 Trước khi triển khai, vẫn cần kiểm tra dữ liệu chuyển đổi trên bản sao database, thao tác trong trình duyệt, SMTP và payOS thật.
 

@@ -3,8 +3,9 @@
 ## Published batches
 
 - Frontend base, catalog, product detail, authentication, cart, checkout, order detail, payment cancellation and order lookup: merged in PRs #1–#10.
-- Information, policies, services, news and administration interface: PR #11, awaiting merge.
-- Backend configuration, API, payment verification and automated regression checks: this branch, based on the frontend batch.
+- Information, policies, services, news and administration interface: PR #11, merged into main.
+- Backend configuration, API, payment verification and automated regression checks: PR #12, merged into main; main checks passed.
+- Follow-up: contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering.
 
 ## Verification completed locally
 
@@ -22,12 +23,15 @@
 - Uploads decode and re-encode actual PNG/JPEG/WebP images, enforce limits and use unique names.
 - GitHub Actions runs the API suite against an isolated MySQL 8.4 service as well as SQLite; reset guards reject application databases.
 - Explicit file email mode never sends through SMTP; email transport is checked with mocks and all local HTML href/src targets are checked automatically.
+- Refund requests require the authenticated owner and a confirmed online payment. A support request does not automatically cancel the order, restock inventory or mark funds refunded.
+- Customer cancellation of a paid online order is blocked until support reviews the refund; unpaid online orders can still be cancelled normally.
+- Order lookup and detail render customer/product text and image attributes as escaped content.
 
 ## Remaining integration work
 
-- Merge the frontend batch before the backend batch.
 - Verify schema updates on a copy of existing MySQL data; the CI service starts with a clean database.
 - Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
 - Review account recovery, request limits, uploads and deployment settings before production use.
+- Add a persistent refund-request queue, review status and provider refund reconciliation; the current form sends a support email only.
