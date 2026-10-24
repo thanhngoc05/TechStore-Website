@@ -365,6 +365,10 @@ def _get_current_user_entity():
         return None, (jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403)
     return user, None
 
+def _refundable_payment(order):
+    return Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
+        Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc()).first()
+
 def _require_admin():
     user, err = _get_current_user_entity()
     if err:
@@ -954,17 +958,27 @@ def public_contact():
     return jsonify({"msg": "Gửi yêu cầu thành công!"}), 200
 
 @app.route('/api/public/refund-request', methods=['POST'])
+@jwt_required()
 def public_refund_request():
-    data = request.get_json(silent=True) or {}
-    order_code = (data.get('order_code') or '').strip()
-    name = (data.get('name') or '').strip()
-    phone = (data.get('phone') or '').strip()
-    email = (data.get('email') or '').strip()
-    bank_name = (data.get('bank_name') or '').strip()
-    account_number = (data.get('account_number') or '').strip()
-    account_holder = (data.get('account_holder') or '').strip()
-    note = (data.get('note') or '').strip()
-    payment_method = (data.get('payment_method') or 'payos').strip().lower()
+    user, err = _get_current_user_entity()
+    if err:
+        return err
+    fields = {'order_code': 40, 'name': 120, 'phone': 20, 'email': 120,
+        'bank_name': 120, 'account_number': 100, 'account_holder': 120, 'note': 5000}
+    try:
+        data = _validated_text_fields(request.get_json(silent=True), fields,
+            required=('order_code', 'name', 'phone', 'bank_name', 'account_number', 'account_holder'),
+            single_line=tuple(field for field in fields if field != 'note'))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    order_code, name, phone, email, bank_name, account_number, account_holder, note = (data[field] for field in fields)
+    order = Order.query.filter_by(order_code=order_code, user_id=user.id).first()
+    if not order:
+        return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+    payment = _refundable_payment(order)
+    if not payment:
+        return jsonify({"msg": "Đơn hàng chưa có thanh toán trực tuyến thành công để hoàn tiền"}), 409
+    payment_method = payment.provider
     if not order_code or not name or not phone or not bank_name or not account_number or not account_holder:
         return jsonify({"msg": "Vui lòng nhập đầy đủ thông tin bắt buộc!"}), 400
     if email and not _is_valid_email(email):
