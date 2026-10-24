@@ -318,6 +318,20 @@ def _nonnegative_int(value, maximum=9223372036854775807):
         raise ValueError('Giá hoặc tồn kho nằm ngoài phạm vi cho phép')
     return result
 
+def _validated_text_fields(data, fields, required=(), single_line=()):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu yêu cầu không hợp lệ')
+    result = {}
+    for name, limit in fields.items():
+        value = data.get(name, '')
+        if not isinstance(value, str) or len(value) > limit:
+            raise ValueError('Thông tin không hợp lệ hoặc quá dài')
+        value = value.strip()
+        if (name in required and not value) or (name in single_line and ('\r' in value or '\n' in value)):
+            raise ValueError('Thiếu thông tin bắt buộc hoặc có ký tự xuống dòng không hợp lệ')
+        result[name] = value
+    return result
+
 
 def _validated_product_input(data, partial=False):
     if not isinstance(data, dict):
@@ -918,10 +932,12 @@ def debug_routes():
 
 @app.route('/api/public/contact', methods=['POST'])
 def public_contact():
-    data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    email = (data.get('email') or '').strip()
-    message = (data.get('message') or '').strip()
+    try:
+        data = _validated_text_fields(request.get_json(silent=True),
+            {'name': 120, 'email': 120, 'message': 5000}, required=('name', 'message'), single_line=('name', 'email'))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    name, email, message = (data[field] for field in ('name', 'email', 'message'))
     if not name or not message:
         return jsonify({"msg": "Vui lòng nhập Họ tên và Nội dung!"}), 400
     if email and not _is_valid_email(email):

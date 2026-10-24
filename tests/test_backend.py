@@ -620,6 +620,25 @@ class BackendTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Tests may reset only', result.stderr)
 
+    def test_contact_validates_before_sending(self):
+        valid = {'name': 'Test Buyer', 'email': 'buyer@example.com', 'message': 'Please contact me'}
+        with patch.object(backend, '_send_email_if_configured') as send:
+            for body in ([], {}, dict(valid, name=123), dict(valid, name='Bad\nBcc: other@example.com'),
+                         dict(valid, email='bad'), dict(valid, message='x' * 5001)):
+                r = self.client.post('/api/public/contact', json=body)
+                self.assertEqual(r.status_code, 400, r.json)
+            send.assert_not_called()
+
+    def test_contact_delivery_and_error_responses(self):
+        payload = {'name': 'Test Buyer', 'email': 'buyer@example.com', 'message': 'First line\nSecond line'}
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 200)
+            self.assertEqual(send.call_args.args[0], 'support@example.com')
+            self.assertEqual(send.call_args.kwargs['reply_to_override'], 'buyer@example.com')
+            send.return_value = (False, 'test_failure')
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 502)
+
 
 if __name__ == '__main__':
     unittest.main()
