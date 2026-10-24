@@ -620,6 +620,92 @@ class BackendTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Tests may reset only', result.stderr)
 
+    def test_contact_validates_before_sending(self):
+        valid = {'name': 'Test Buyer', 'email': 'buyer@example.com', 'message': 'Please contact me'}
+        with patch.object(backend, '_send_email_if_configured') as send:
+            for body in ([], {}, dict(valid, name=123), dict(valid, name='Bad\nBcc: other@example.com'),
+                         dict(valid, email='bad'), dict(valid, message='x' * 5001)):
+                r = self.client.post('/api/public/contact', json=body)
+                self.assertEqual(r.status_code, 400, r.json)
+            send.assert_not_called()
+
+    def test_contact_delivery_and_error_responses(self):
+        payload = {'name': 'Test Buyer', 'email': 'buyer@example.com', 'message': 'First line\nSecond line'}
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 200)
+            self.assertEqual(send.call_args.args[0], 'support@example.com')
+            self.assertEqual(send.call_args.kwargs['reply_to_override'], 'buyer@example.com')
+            send.return_value = (False, 'test_failure')
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 502)
+
+    def refund_payload(self, code):
+        return {'order_code': code, 'name': 'Buyer', 'phone': '0900000000', 'email': 'buyer@example.com',
+                'bank_name': 'Test Bank', 'account_number': '123456', 'account_holder': 'Test Buyer'}
+
+    def test_refund_requires_owner_and_successful_online_payment(self):
+        code = self.pending_payment()
+        payload = self.refund_payload(code)
+        self.assertEqual(self.client.post('/api/public/refund-request', json=payload).status_code, 401)
+        self.assertEqual(self.client.post('/api/public/refund-request', headers=self.headers, json=payload).status_code, 409)
+        self.register('other')
+        self.assertEqual(self.client.post('/api/public/refund-request', headers=self.login('other'), json=payload).status_code, 404)
+
+    def test_refund_request_does_not_cancel_or_restock_order(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        payload = dict(self.refund_payload(code), payment_method='forged-provider')
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            r = self.client.post('/api/public/refund-request', headers=self.headers, json=payload)
+            self.assertEqual(r.status_code, 200, r.json)
+            self.assertIn('PAYOS', send.call_args.args[1])
+            self.assertNotIn('forged-provider', send.call_args.args[2])
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+
+    def test_refund_rejects_invalid_input_before_email(self):
+        with patch.object(backend, '_send_email_if_configured') as send:
+            for body in ([], {}, dict(self.refund_payload('ORD'), name=123),
+                         dict(self.refund_payload('ORD'), order_code='ORD\nBcc: victim@example.com')):
+                self.assertEqual(self.client.post('/api/public/refund-request', headers=self.headers, json=body).status_code, 400)
+            send.assert_not_called()
+
+    def test_refund_delivery_failure_keeps_payment_and_order(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
+            r = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+            self.assertEqual(r.status_code, 502, r.json)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+
+    def test_paid_online_order_requires_refund_before_cancellation(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        detail = self.client.get('/api/orders/' + code, headers=self.headers)
+        self.assertTrue(detail.json['requires_refund'])
+        r = self.client.put('/api/orders/' + code + '/cancel', headers=self.headers)
+        self.assertEqual(r.status_code, 409, r.json)
+        self.assertTrue(r.json['requires_refund'])
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+
+    def test_unpaid_online_order_can_be_cancelled_without_refund(self):
+        code = self.pending_payment()
+        self.assertFalse(self.client.get('/api/orders/' + code, headers=self.headers).json['requires_refund'])
+        r = self.client.put('/api/orders/' + code + '/cancel', headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.json)
+        self.assertEqual(self.payment_state(), ('failed', 'cancelled'))
+
 
 if __name__ == '__main__':
     unittest.main()

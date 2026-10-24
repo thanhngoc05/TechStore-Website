@@ -318,6 +318,20 @@ def _nonnegative_int(value, maximum=9223372036854775807):
         raise ValueError('Giá hoặc tồn kho nằm ngoài phạm vi cho phép')
     return result
 
+def _validated_text_fields(data, fields, required=(), single_line=()):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu yêu cầu không hợp lệ')
+    result = {}
+    for name, limit in fields.items():
+        value = data.get(name, '')
+        if not isinstance(value, str) or len(value) > limit:
+            raise ValueError('Thông tin không hợp lệ hoặc quá dài')
+        value = value.strip()
+        if (name in required and not value) or (name in single_line and ('\r' in value or '\n' in value)):
+            raise ValueError('Thiếu thông tin bắt buộc hoặc có ký tự xuống dòng không hợp lệ')
+        result[name] = value
+    return result
+
 
 def _validated_product_input(data, partial=False):
     if not isinstance(data, dict):
@@ -350,6 +364,10 @@ def _get_current_user_entity():
     if user.is_locked:
         return None, (jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403)
     return user, None
+
+def _refundable_payment(order):
+    return Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
+        Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc()).first()
 
 def _require_admin():
     user, err = _get_current_user_entity()
@@ -918,10 +936,12 @@ def debug_routes():
 
 @app.route('/api/public/contact', methods=['POST'])
 def public_contact():
-    data = request.get_json(silent=True) or {}
-    name = (data.get('name') or '').strip()
-    email = (data.get('email') or '').strip()
-    message = (data.get('message') or '').strip()
+    try:
+        data = _validated_text_fields(request.get_json(silent=True),
+            {'name': 120, 'email': 120, 'message': 5000}, required=('name', 'message'), single_line=('name', 'email'))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    name, email, message = (data[field] for field in ('name', 'email', 'message'))
     if not name or not message:
         return jsonify({"msg": "Vui lòng nhập Họ tên và Nội dung!"}), 400
     if email and not _is_valid_email(email):
@@ -938,17 +958,27 @@ def public_contact():
     return jsonify({"msg": "Gửi yêu cầu thành công!"}), 200
 
 @app.route('/api/public/refund-request', methods=['POST'])
+@jwt_required()
 def public_refund_request():
-    data = request.get_json(silent=True) or {}
-    order_code = (data.get('order_code') or '').strip()
-    name = (data.get('name') or '').strip()
-    phone = (data.get('phone') or '').strip()
-    email = (data.get('email') or '').strip()
-    bank_name = (data.get('bank_name') or '').strip()
-    account_number = (data.get('account_number') or '').strip()
-    account_holder = (data.get('account_holder') or '').strip()
-    note = (data.get('note') or '').strip()
-    payment_method = (data.get('payment_method') or 'payos').strip().lower()
+    user, err = _get_current_user_entity()
+    if err:
+        return err
+    fields = {'order_code': 40, 'name': 120, 'phone': 20, 'email': 120,
+        'bank_name': 120, 'account_number': 100, 'account_holder': 120, 'note': 5000}
+    try:
+        data = _validated_text_fields(request.get_json(silent=True), fields,
+            required=('order_code', 'name', 'phone', 'bank_name', 'account_number', 'account_holder'),
+            single_line=tuple(field for field in fields if field != 'note'))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    order_code, name, phone, email, bank_name, account_number, account_holder, note = (data[field] for field in fields)
+    order = Order.query.filter_by(order_code=order_code, user_id=user.id).first()
+    if not order:
+        return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+    payment = _refundable_payment(order)
+    if not payment:
+        return jsonify({"msg": "Đơn hàng chưa có thanh toán trực tuyến thành công để hoàn tiền"}), 409
+    payment_method = payment.provider
     if not order_code or not name or not phone or not bank_name or not account_number or not account_holder:
         return jsonify({"msg": "Vui lòng nhập đầy đủ thông tin bắt buộc!"}), 400
     if email and not _is_valid_email(email):
@@ -1508,6 +1538,7 @@ def get_order_detail(order_code):
         "payment_initial": _payment_payload(initial_payment) or derived_initial,
         "payment_latest": _payment_payload(last_payment),
         "payments_count": len(payments),
+        "requires_refund": _refundable_payment(order) is not None,
     }), 200
 
 @app.route('/api/orders/<string:order_code>/cancel', methods=['PUT'])
@@ -1529,6 +1560,9 @@ def cancel_my_order(order_code):
             order = Order.query.filter_by(order_code=order_code, user_id=user.id).with_for_update().first()
             if not order:
                 return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+            if _refundable_payment(order):
+                return jsonify({"msg": "Đơn đã thanh toán trực tuyến. Vui lòng gửi yêu cầu hoàn tiền để được hỗ trợ.",
+                                "requires_refund": True}), 409
             try:
                 items = OrderItem.query.filter_by(order_id=order.id).all()
                 item_lines = []

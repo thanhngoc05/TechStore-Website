@@ -46,6 +46,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const token = localStorage.getItem("token");
+    if (!token) {
+      alert("Vui lòng đăng nhập để gửi yêu cầu hoàn tiền.");
+      window.location.href = "login.html";
+      return;
+    }
 
     const order_code = String(orderCodeInput?.value || "").trim();
     const name = String(nameInput?.value || "").trim();
@@ -82,7 +88,6 @@ document.addEventListener("DOMContentLoaded", () => {
       account_number,
       account_holder,
       note,
-      payment_method: "momo",
     };
 
     const oldText = submitBtn ? submitBtn.textContent : "";
@@ -94,7 +99,7 @@ document.addEventListener("DOMContentLoaded", () => {
     try {
       const res = await fetch(window.apiUrl("/api/public/refund-request"), {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(payload),
       });
       const data = await res.json().catch(() => ({}));
@@ -104,49 +109,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      // Try to cancel the order as well (best-effort).
-      let cancelled = false;
-      let cancelError = "";
-      try {
-        const token = localStorage.getItem("token");
-        if (token) {
-          const encoded = encodeURIComponent(order_code);
-          const r2 = await fetch(
-            window.apiUrl(`/api/orders/${encoded}/cancel`),
-            {
-              method: "PUT",
-              headers: { Authorization: `Bearer ${token}` },
-            },
-          );
-          if (r2.ok) {
-            cancelled = true;
-          } else {
-            const t2 = await r2.text();
-            const j2 = (() => {
-              try {
-                return JSON.parse(t2);
-              } catch {
-                return null;
-              }
-            })();
-            cancelError =
-              j2 && j2.msg ? String(j2.msg) : t2 || `HTTP ${r2.status}`;
-          }
-        }
-      } catch (e2) {
-        cancelError = e2 && e2.message ? String(e2.message) : "";
-      }
-
-      if (cancelled) {
-        alert("Đã gửi yêu cầu hoàn tiền và đã hủy đơn hàng thành công!");
-        window.location.href = "Tra_cuu.html";
-      } else {
-        const extra = cancelError
-          ? `\n(Lưu ý: Chưa hủy tự động được: ${cancelError})`
-          : "";
-        alert("Đã gửi yêu cầu hoàn tiền thành công!" + extra);
-        window.location.href = "Tra_cuu.html";
-      }
+      alert("Đã gửi yêu cầu hoàn tiền. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi; đơn hàng chưa được hủy tự động.");
+      window.location.href = "Tra_cuu.html";
     } catch (err) {
       console.error(err);
       alert("Không thể kết nối đến server!");
