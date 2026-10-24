@@ -22,22 +22,14 @@ function requireLoginForBE2() {
   if (!token) {
     const container = document.getElementById("orderListArea");
     if (container) {
-      const origin = (() => {
-        try {
-          return window.location.origin;
-        } catch {
-          return "";
-        }
-      })();
       container.innerHTML = `
                 <div class="empty-notify">
                     <i class="fas fa-user-lock" style="font-size: 36px; display: block; margin-bottom: 10px;"></i>
-                    <div style="font-weight:700; margin-bottom:6px;">Báº¡n chÆ°a Ä‘Äƒng nháº­p.</div>
+                    <div style="font-weight:700; margin-bottom:6px;">Bạn chưa đăng nhập.</div>
                     <div style="font-size:12px; color:#666; margin-bottom:10px;">
-                        LÆ°u Ã½: token chá»‰ lÆ°u theo Ä‘Ãºng Ä‘á»‹a chá»‰ website. Náº¿u báº¡n Ä‘Äƒng nháº­p á»Ÿ <b>localhost</b> nhÆ°ng Ä‘ang má»Ÿ Tra cá»©u á»Ÿ <b>127.0.0.1</b> (hoáº·c ngÆ°á»£c láº¡i) thÃ¬ sáº½ bá»‹ máº¥t token.
-                        ${origin ? `<br/>Äá»‹a chá»‰ hiá»‡n táº¡i: <b>${origin}</b>` : ""}
+                        Vui lòng đăng nhập để xem và quản lý đơn hàng của bạn.
                     </div>
-                    <a href="login.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">ÄÄƒng nháº­p láº¡i</a>
+                    <a href="login.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">Đăng nhập lại</a>
                 </div>
             `;
     }
@@ -91,7 +83,7 @@ async function loadProductsIndex() {
       if (p && p.id != null) allProductsById[p.id] = p;
     });
   } catch (e) {
-    console.error("KhÃ´ng thá»ƒ táº£i danh sÃ¡ch sáº£n pháº©m:", e);
+    console.error("Không thể tải danh sách sản phẩm:", e);
     allProductsById = {};
   }
 }
@@ -108,7 +100,7 @@ async function fetchMyOrders(token) {
   const text = await res.text();
   const data = _safeJsonParse(text);
   if (!res.ok) {
-    const msg = data && data.msg ? data.msg : text || "KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng";
+    const msg = data && data.msg ? data.msg : text || "Không thể tải đơn hàng";
     const err = new Error(`HTTP ${res.status}: ${msg}`);
     err.status = res.status;
     err.raw = data || text;
@@ -153,7 +145,7 @@ async function cancelOrder(token, orderCode) {
   const text = await res.text();
   const data = _safeJsonParse(text);
   if (!res.ok) {
-    const msg = data && data.msg ? data.msg : text || "KhÃ´ng thá»ƒ há»§y Ä‘Æ¡n hÃ ng";
+    const msg = data && data.msg ? data.msg : text || "Không thể hủy đơn hàng";
     const err = new Error(`HTTP ${res.status}: ${msg}`);
     err.status = res.status;
     err.raw = data || text;
@@ -166,7 +158,7 @@ async function addToCart(token, productId, quantity) {
   const pid = Number(productId || 0);
   const qty = Number(quantity || 0);
   if (!pid || pid <= 0 || !qty || qty <= 0) {
-    throw new Error("Dá»¯ liá»‡u sáº£n pháº©m khÃ´ng há»£p lá»‡");
+    throw new Error("Dữ liệu sản phẩm không hợp lệ");
   }
 
   const res = await fetchWithTimeout(
@@ -186,7 +178,7 @@ async function addToCart(token, productId, quantity) {
   const data = _safeJsonParse(text);
   if (!res.ok) {
     const msg =
-      data && data.msg ? data.msg : text || "KhÃ´ng thá»ƒ thÃªm vÃ o giá» hÃ ng";
+      data && data.msg ? data.msg : text || "Không thể thêm vào giỏ hàng";
     const err = new Error(`HTTP ${res.status}: ${msg}`);
     err.status = res.status;
     err.raw = data || text;
@@ -212,7 +204,7 @@ function normalizeOrderItems(items) {
 
 function pickOrderThumbnail(items) {
   const first = items && items[0];
-  if (!first) return { img: "../assets/img/LOGO1.png", name: "Sáº£n pháº©m", images: [] };
+  if (!first) return { img: "../assets/img/LOGO1.png", name: "Sản phẩm", images: [] };
   
   const images = (items || []).map(it => {
     const product = it.product_id != null ? allProductsById[it.product_id] : null;
@@ -223,13 +215,13 @@ function pickOrderThumbnail(items) {
     first.product_id != null ? allProductsById[first.product_id] : null;
   return {
     img: product && product.img ? product.img : "../assets/img/LOGO1.png",
-    name: first.name || (product && product.name) || "Sáº£n pháº©m",
+    name: first.name || (product && product.name) || "Sản phẩm",
     images: images
   };
 }
 
 /**
- * HÃ m render giao diá»‡n stack áº£nh xÃ²e bÃ i cho danh sÃ¡ch Ä‘Æ¡n hÃ ng
+ * Hàm render giao diện stack ảnh xòe bài cho danh sách đơn hàng
  */
 function renderOrderImagesStack(images) {
   if (!images || images.length === 0) images = ["../assets/img/LOGO1.png"];
@@ -247,7 +239,7 @@ function renderOrderImagesStack(images) {
       const ty = Math.abs(offset) * 4;
       style += `transform: translateX(${tx}px) translateY(${ty}px) rotate(${rotate}deg);`;
     } else {
-      // Náº¿u lÃ  áº£nh Ä‘Æ¡n, giá»¯ nguyÃªn khÃ´ng xoay Ä‘á»ƒ kÃ­ch thÆ°á»›c "khung" nhÃ¬n Ä‘á»“ng nháº¥t vá»›i stack
+      // Nếu là ảnh đơn, giữ nguyên không xoay để kích thước "khung" nhìn đồng nhất với stack
       style += `transform: none;`;
     }
     
@@ -261,7 +253,7 @@ async function loadOrdersFromBE2() {
   if (typeof window.apiUrl !== "function") {
     const container = document.getElementById("orderListArea");
     if (container) {
-      container.innerHTML = `<div class="empty-notify">KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng: thiáº¿u cáº¥u hÃ¬nh API. Vui lÃ²ng táº£i láº¡i trang.</div>`;
+      container.innerHTML = `<div class="empty-notify">Không thể tải đơn hàng: thiếu cấu hình API. Vui lòng tải lại trang.</div>`;
     }
     throw new Error("api-config-not-loaded");
   }
@@ -271,7 +263,7 @@ async function loadOrdersFromBE2() {
 
   const container = document.getElementById("orderListArea");
   if (container) {
-    container.innerHTML = `<div class="empty-notify">Äang táº£i Ä‘Æ¡n hÃ ng...</div>`;
+    container.innerHTML = `<div class="empty-notify">Đang tải đơn hàng...</div>`;
   }
 
   // Always request orders first (to make debugging easier).
@@ -307,7 +299,7 @@ async function loadOrdersFromBE2() {
         },
       ];
 
-      // Cáº­p nháº­t tÃªn ngÆ°á»i dÃ¹ng náº¿u cÃ³
+      // Cập nhật tên người dùng nếu có
       const username = localStorage.getItem("username");
       if (username) {
         const el = document.getElementById("userNameDisplay");
@@ -345,7 +337,7 @@ async function loadOrdersFromBE2() {
 
   cachedOrders = enriched;
 
-  // Cáº­p nháº­t tÃªn ngÆ°á»i dÃ¹ng náº¿u cÃ³
+  // Cập nhật tên người dùng nếu có
   const username = localStorage.getItem("username");
   if (username) {
     const el = document.getElementById("userNameDisplay");
@@ -354,7 +346,7 @@ async function loadOrdersFromBE2() {
 }
 
 function filterOrders(status, element) {
-  // Cáº­p nháº­t giao diá»‡n tab
+  // Cập nhật giao diện tab
   document
     .querySelectorAll(".step-item")
     .forEach((el) => el.classList.remove("active"));
@@ -368,7 +360,7 @@ function filterOrders(status, element) {
     status === "all" ? orders : orders.filter((o) => o.status === status);
 
   if (filtered.length === 0) {
-    container.innerHTML = `<div class="empty-notify"><i class="fas fa-box-open" style="font-size: 40px; display: block; margin-bottom: 10px;"></i>ChÆ°a cÃ³ Ä‘Æ¡n hÃ ng nÃ o.</div>`;
+    container.innerHTML = `<div class="empty-notify"><i class="fas fa-box-open" style="font-size: 40px; display: block; margin-bottom: 10px;"></i>Chưa có đơn hàng nào.</div>`;
     return;
   }
 
@@ -382,18 +374,18 @@ function filterOrders(status, element) {
               return `<div style="font-size:12px; color:#555; margin-top:2px;">â€¢ ${it.name} x${qty}</div>`;
             })
             .join("")
-        : `<div style="font-size:12px; color:#777; margin-top:4px;">(KhÃ´ng táº£i Ä‘Æ°á»£c chi tiáº¿t sáº£n pháº©m)</div>`;
+        : `<div style="font-size:12px; color:#777; margin-top:4px;">(Không tải được chi tiết sản phẩm)</div>`;
 
       const totalText = formatMoneyVND(order.totalAmount || 0);
       const statusNorm = String(order.status || "").toLowerCase();
           const canCancel = statusNorm === "processing";
       const canRebuy = String(order.status || "").toLowerCase() === "cancelled";
-      const viewBtnHtml = `<button type="button" class="btn-view-order" data-view-order="${order.orderCode}">Xem chi tiáº¿t</button>`;
+      const viewBtnHtml = `<button type="button" class="btn-view-order" data-view-order="${order.orderCode}">Xem chi tiết</button>`;
       const cancelBtnHtml = canCancel
-        ? `<button type="button" class="btn-cancel-order" data-cancel-order="${order.orderCode}">Há»§y Ä‘Æ¡n hÃ ng</button>`
+        ? `<button type="button" class="btn-cancel-order" data-cancel-order="${order.orderCode}">Hủy đơn hàng</button>`
         : "";
       const rebuyBtnHtml = canRebuy
-        ? `<button type="button" class="btn-rebuy-order" data-rebuy-order="${order.orderCode}">Mua láº¡i</button>`
+        ? `<button type="button" class="btn-rebuy-order" data-rebuy-order="${order.orderCode}">Mua lại</button>`
         : "";
       const actionsHtml = `<div class="order-actions">${viewBtnHtml}${cancelBtnHtml}${rebuyBtnHtml}</div>`;
       return `
@@ -401,10 +393,10 @@ function filterOrders(status, element) {
             ${renderOrderImagesStack(order.productImages)}
             <div class="order-card-info">
                 <h4>${order.productName}</h4>
-                <p>MÃ£ Ä‘Æ¡n: <b>${order.orderCode}</b></p>
-                <p>Sá»‘ lÆ°á»£ng: ${order.quantity || 0}</p>
-                <p>Tráº¡ng thÃ¡i: <span style="color: #28a745;">${getStatusText(order.status)}</span></p>
-                <p>NgÃ y Ä‘áº·t: ${order.orderDate || ""}</p>
+                <p>Mã đơn: <b>${order.orderCode}</b></p>
+                <p>Số lượng: ${order.quantity || 0}</p>
+                <p>Trạng thái: <span style="color: #28a745;">${getStatusText(order.status)}</span></p>
+                <p>Ngày đặt: ${order.orderDate || ""}</p>
                 <div style="margin-top:6px;">${itemsHtml}</div>
                 ${actionsHtml}
             </div>
@@ -431,7 +423,7 @@ function _findTabElementForStatus(status) {
   // Fallbacks: match by text
   if (needle.toLowerCase() === "cancelled") {
     return (
-      tabs.find((t) => (t.textContent || "").trim().toLowerCase() === "há»§y") ||
+      tabs.find((t) => (t.textContent || "").trim().toLowerCase() === "hủy") ||
       null
     );
   }
@@ -478,7 +470,7 @@ function bindCancelOrderHandler() {
 
       rebuyBtn.disabled = true;
       const oldText = rebuyBtn.textContent;
-      rebuyBtn.textContent = "Äang chuáº©n bá»‹...";
+      rebuyBtn.textContent = "Đang chuẩn bị...";
 
       try {
         const detail = await fetchOrderDetail(token, orderCode);
@@ -497,7 +489,7 @@ function bindCancelOrderHandler() {
           );
         if (validItems.length === 0) {
           window.alert(
-            "KhÃ´ng thá»ƒ mua láº¡i: thiáº¿u dá»¯ liá»‡u sáº£n pháº©m trong Ä‘Æ¡n hÃ ng.",
+            "Không thể mua lại: thiếu dữ liệu sản phẩm trong đơn hàng.",
           );
           return;
         }
@@ -518,11 +510,11 @@ function bindCancelOrderHandler() {
         const msg =
           err && err.message
             ? String(err.message)
-            : "KhÃ´ng thá»ƒ mua láº¡i Ä‘Æ¡n hÃ ng.";
+            : "Không thể mua lại đơn hàng.";
         window.alert(msg);
       } finally {
         rebuyBtn.disabled = false;
-        rebuyBtn.textContent = oldText || "Mua láº¡i";
+        rebuyBtn.textContent = oldText || "Mua lại";
       }
 
       return;
@@ -547,7 +539,7 @@ function bindCancelOrderHandler() {
       return;
     }
 
-    const ok = window.confirm(`Báº¡n cÃ³ cháº¯c muá»‘n há»§y Ä‘Æ¡n ${orderCode}?`);
+    const ok = window.confirm(`Bạn có chắc muốn hủy đơn ${orderCode}?`);
     if (!ok) return;
 
     const token = requireLoginForBE2();
@@ -555,7 +547,7 @@ function bindCancelOrderHandler() {
 
     btn.disabled = true;
     const oldText = btn.textContent;
-    btn.textContent = "Äang há»§y...";
+    btn.textContent = "Đang hủy...";
 
     try {
       const result = await cancelOrder(token, orderCode);
@@ -569,23 +561,23 @@ function bindCancelOrderHandler() {
         result && result.email_error ? String(result.email_error) : "";
       let emailText = "";
       if (emailSent) {
-        emailText = "\nÄÃ£ gá»­i email thÃ´ng bÃ¡o há»§y Ä‘Æ¡n.";
+        emailText = "\nĐã gửi email thông báo hủy đơn.";
       } else if (emailError && emailError.startsWith("dev_email_mode:")) {
         const mode = emailError.split(":", 2)[1] || "";
-        emailText = `\nEmail Ä‘ang á»Ÿ cháº¿ Ä‘á»™ DEV (EMAIL_MODE=${mode}). ChÆ°a gá»­i qua SMTP.`;
+        emailText = `\nEmail đang ở chế độ DEV (EMAIL_MODE=${mode}). Chưa gửi qua SMTP.`;
       } else if (emailError) {
-        emailText = `\nChÆ°a gá»­i Ä‘Æ°á»£c email (${emailError}).`;
+        emailText = `\nChưa gửi được email (${emailError}).`;
       }
-      window.alert(`ÄÃ£ há»§y Ä‘Æ¡n ${orderCode} thÃ nh cÃ´ng.${emailText}`);
+      window.alert(`Đã hủy đơn ${orderCode} thành công.${emailText}`);
     } catch (err) {
       console.error(err);
       const status = err && err.status ? String(err.status) : "";
       const msg =
-        err && err.message ? String(err.message) : "KhÃ´ng thá»ƒ há»§y Ä‘Æ¡n hÃ ng.";
+        err && err.message ? String(err.message) : "Không thể hủy đơn hàng.";
 
-      // Token háº¿t háº¡n/khÃ´ng há»£p lá»‡
+      // Token hết hạn/không hợp lệ
       if (status === "401" || status === "422") {
-        window.alert("PhiÃªn Ä‘Äƒng nháº­p Ä‘Ã£ háº¿t háº¡n. Vui lÃ²ng Ä‘Äƒng nháº­p láº¡i.");
+        window.alert("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
         try {
           window.location.href = "login.html";
         } catch {
@@ -596,7 +588,7 @@ function bindCancelOrderHandler() {
 
       if (status === "405") {
         window.alert(
-          "KhÃ´ng há»§y Ä‘Æ°á»£c (405). Backend cÃ³ thá»ƒ Ä‘ang cháº¡y phiÃªn báº£n cÅ©/chÆ°a restart.\nHÃ£y táº¯t backend (CTRL+C) vÃ  cháº¡y láº¡i: .\\.venv\\Scripts\\python.exe backend\\app.py",
+          "Không hủy được (405). Backend có thể đang chạy phiên bản cũ/chưa restart.\nHãy tắt backend (CTRL+C) và chạy lại: .\\.venv\\Scripts\\python.exe backend\\app.py",
         );
       } else {
         window.alert(msg);
@@ -624,7 +616,7 @@ function bindCancelOrderHandler() {
         // ignore
       }
       btn.disabled = false;
-      btn.textContent = oldText || "Há»§y Ä‘Æ¡n hÃ ng";
+      btn.textContent = oldText || "Hủy đơn hàng";
     }
   });
 
@@ -633,12 +625,12 @@ function bindCancelOrderHandler() {
 
 function getStatusText(status) {
   const map = {
-    processing: "Äang xá»­ lÃ½",
-    shipping: "Äang giao hÃ ng",
-    completed: "HoÃ n thÃ nh",
-    cancelled: "ÄÃ£ há»§y",
+    processing: "Đang xử lý",
+    shipping: "Đang giao hàng",
+    completed: "Hoàn thành",
+    cancelled: "Đã hủy",
   };
-  return map[status] || "KhÃ´ng xÃ¡c Ä‘á»‹nh";
+  return map[status] || "Không xác định";
 }
 
 function _renderLoadError(err) {
@@ -646,27 +638,27 @@ function _renderLoadError(err) {
   if (!container) return;
 
   const msg =
-    err && err.message ? String(err.message) : "KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng.";
+    err && err.message ? String(err.message) : "Không thể tải đơn hàng.";
   const status = err && err.status ? String(err.status) : "";
 
   let hint = "";
   if (status === "401") {
     hint =
-      "Gá»£i Ã½: báº¡n Ä‘ang háº¿t háº¡n Ä‘Äƒng nháº­p hoáº·c token Ä‘ang náº±m á»Ÿ origin khÃ¡c (localhost/127.0.0.1).";
+      "Gợi ý: bạn đang hết hạn đăng nhập hoặc token đang nằm ở origin khác (localhost/127.0.0.1).";
   } else if (status === "403") {
-    hint = "Gá»£i Ã½: tÃ i khoáº£n cÃ³ thá»ƒ Ä‘ang bá»‹ khÃ³a hoáº·c khÃ´ng Ä‘á»§ quyá»n.";
+    hint = "Gợi ý: tài khoản có thể đang bị khóa hoặc không đủ quyền.";
   }
 
   container.innerHTML = `
         <div class="empty-notify">
             <i class="fas fa-triangle-exclamation" style="font-size: 36px; display: block; margin-bottom: 10px;"></i>
-            <div style="font-weight:700; margin-bottom:6px;">KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng</div>
+            <div style="font-weight:700; margin-bottom:6px;">Không thể tải đơn hàng</div>
             <div style="font-size:12px; color:#666; margin-bottom:10px;">${hint}</div>
             <div style="text-align:left; background:#fff; border:1px solid #eee; border-radius:12px; padding:10px; font-size:12px; color:#333; max-width:680px; margin:0 auto; overflow:auto;">
-                <div><b>Chi tiáº¿t:</b> ${msg}</div>
+                <div><b>Chi tiết:</b> ${msg}</div>
             </div>
             <div style="margin-top:12px;">
-                <a href="login.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">ÄÄƒng nháº­p láº¡i</a>
+                <a href="login.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">Đăng nhập lại</a>
             </div>
         </div>
     `;
@@ -685,14 +677,14 @@ function initTraCuu() {
       if (e && e.message === "api-config-not-loaded") {
         const container = document.getElementById("orderListArea");
         if (container) {
-          container.innerHTML = `<div class="empty-notify">KhÃ´ng thá»ƒ táº£i Ä‘Æ¡n hÃ ng: thiáº¿u cáº¥u hÃ¬nh API. Vui lÃ²ng táº£i láº¡i trang.</div>`;
+          container.innerHTML = `<div class="empty-notify">Không thể tải đơn hàng: thiếu cấu hình API. Vui lòng tải lại trang.</div>`;
         }
         return;
       }
       _renderLoadError(e);
     });
 
-  // Tá»± Ä‘á»™ng lÃ m má»›i danh sÃ¡ch Ä‘Æ¡n hÃ ng sau má»—i 20 giÃ¢y Ä‘á»ƒ cáº­p nháº­t tráº¡ng thÃ¡i má»›i nháº¥t tá»« Admin
+  // Tự động làm mới danh sách đơn hàng sau mỗi 20 giây để cập nhật trạng thái mới nhất từ Admin
   setInterval(async () => {
     const activeTab = document.querySelector(".step-item.active");
     if (!activeTab) return;
@@ -705,7 +697,7 @@ function initTraCuu() {
       await loadOrdersFromBE2();
       filterOrders(status, activeTab);
     } catch (err) {
-      console.warn("Tá»± Ä‘á»™ng cáº­p nháº­t Ä‘Æ¡n hÃ ng tháº¥t báº¡i:", err);
+      console.warn("Tự động cập nhật đơn hàng thất bại:", err);
     }
   }, 20000);
 
@@ -716,7 +708,7 @@ function resetInitForBFCache() {
   _initPromise = null;
 }
 
-// Khá»Ÿi táº¡o trang: Máº·c Ä‘á»‹nh hiá»‡n táº¥t cáº£
+// Khởi tạo trang: Mặc định hiện tất cả
 function runInitWhenReady() {
   if (document.readyState !== "loading") {
     initTraCuu();
