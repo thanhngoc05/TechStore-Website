@@ -1,3 +1,9 @@
+function escapeOrderHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 let allProductsById = {};
 let cachedOrders = [];
 
@@ -243,7 +249,7 @@ function renderOrderImagesStack(images) {
       style += `transform: none;`;
     }
     
-    html += `<img src="${src}" style="${style}">`;
+    html += `<img src="${escapeOrderHtml(src)}" style="${style}">`;
   });
   html += `</div>`;
   return html;
@@ -371,7 +377,7 @@ function filterOrders(status, element) {
         ? items
             .map((it) => {
               const qty = Number(it.quantity) || 0;
-              return `<div style="font-size:12px; color:#555; margin-top:2px;">â€¢ ${it.name} x${qty}</div>`;
+              return `<div style="font-size:12px; color:#555; margin-top:2px;">• ${escapeOrderHtml(it.name)} x${qty}</div>`;
             })
             .join("")
         : `<div style="font-size:12px; color:#777; margin-top:4px;">(Không tải được chi tiết sản phẩm)</div>`;
@@ -380,23 +386,23 @@ function filterOrders(status, element) {
       const statusNorm = String(order.status || "").toLowerCase();
           const canCancel = statusNorm === "processing";
       const canRebuy = String(order.status || "").toLowerCase() === "cancelled";
-      const viewBtnHtml = `<button type="button" class="btn-view-order" data-view-order="${order.orderCode}">Xem chi tiết</button>`;
+      const viewBtnHtml = `<button type="button" class="btn-view-order" data-view-order="${escapeOrderHtml(order.orderCode)}">Xem chi tiết</button>`;
       const cancelBtnHtml = canCancel
-        ? `<button type="button" class="btn-cancel-order" data-cancel-order="${order.orderCode}">Hủy đơn hàng</button>`
+        ? `<button type="button" class="btn-cancel-order" data-cancel-order="${escapeOrderHtml(order.orderCode)}">Hủy đơn hàng</button>`
         : "";
       const rebuyBtnHtml = canRebuy
-        ? `<button type="button" class="btn-rebuy-order" data-rebuy-order="${order.orderCode}">Mua lại</button>`
+        ? `<button type="button" class="btn-rebuy-order" data-rebuy-order="${escapeOrderHtml(order.orderCode)}">Mua lại</button>`
         : "";
       const actionsHtml = `<div class="order-actions">${viewBtnHtml}${cancelBtnHtml}${rebuyBtnHtml}</div>`;
       return `
         <div class="order-card-item">
             ${renderOrderImagesStack(order.productImages)}
             <div class="order-card-info">
-                <h4>${order.productName}</h4>
-                <p>Mã đơn: <b>${order.orderCode}</b></p>
+                <h4>${escapeOrderHtml(order.productName)}</h4>
+                <p>Mã đơn: <b>${escapeOrderHtml(order.orderCode)}</b></p>
                 <p>Số lượng: ${order.quantity || 0}</p>
-                <p>Trạng thái: <span style="color: #28a745;">${getStatusText(order.status)}</span></p>
-                <p>Ngày đặt: ${order.orderDate || ""}</p>
+                <p>Trạng thái: <span style="color: #28a745;">${escapeOrderHtml(getStatusText(order.status))}</span></p>
+                <p>Ngày đặt: ${escapeOrderHtml(order.orderDate)}</p>
                 <div style="margin-top:6px;">${itemsHtml}</div>
                 ${actionsHtml}
             </div>
@@ -655,7 +661,7 @@ function _renderLoadError(err) {
             <div style="font-weight:700; margin-bottom:6px;">Không thể tải đơn hàng</div>
             <div style="font-size:12px; color:#666; margin-bottom:10px;">${hint}</div>
             <div style="text-align:left; background:#fff; border:1px solid #eee; border-radius:12px; padding:10px; font-size:12px; color:#333; max-width:680px; margin:0 auto; overflow:auto;">
-                <div><b>Chi tiết:</b> ${msg}</div>
+                <div><b>Chi tiết:</b> ${escapeOrderHtml(msg)}</div>
             </div>
             <div style="margin-top:12px;">
                 <a href="login.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">Đăng nhập lại</a>

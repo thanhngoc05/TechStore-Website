@@ -42,3 +42,20 @@ for (const requiresRefund of [true, false]) {
     assert.equal(window.location.href, requiresRefund ? 'momo-cancel.html?order_code=ORD-1' : '');
   });
 }
+
+test('order details escape customer and product text and image attributes', () => {
+  const area = { innerHTML: '', prepend() {} };
+  const context = vm.createContext({
+    document: { readyState: 'loading', addEventListener() {}, createElement: () => ({}),
+                getElementById: id => id === 'orderDetailArea' ? area : null },
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../scripts/order-detail.js'), 'utf8'), context);
+  context.renderOrderDetail({ order_code: 'ORD', status: 'cancelled',
+    customer: { name: '<script>alert(1)</script>', address: '<svg onload=alert(1)>' },
+    items: [{ name: '<script>product</script>', img: '/image.png" onerror="alert(1)', quantity: 1, price: 100 }],
+  });
+  assert.equal(area.innerHTML.includes('<script>'), false);
+  assert.equal(area.innerHTML.includes('<svg'), false);
+  assert.ok(area.innerHTML.includes('&lt;script&gt;'));
+  assert.ok(area.innerHTML.includes('/image.png&quot; onerror=&quot;'));
+});

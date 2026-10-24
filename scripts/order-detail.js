@@ -1,3 +1,9 @@
+function escapeOrderHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 function formatMoneyVND(value) {
   const n = Number(value || 0);
   try {
@@ -318,14 +324,14 @@ function renderOrderDetail(detail) {
           const sub = Number(it.subtotal) || unit * qty;
           const imgSrc = resolveProductImgSrc(it.img);
           const imgHtml = imgSrc
-            ? `<img class="od-item-img" src="${imgSrc}" alt="${safeText(it.name || it.product_name)}" loading="lazy" />`
+            ? `<img class="od-item-img" src="${escapeOrderHtml(imgSrc)}" alt="${escapeOrderHtml(it.name || it.product_name)}" loading="lazy" />`
             : `<div class="od-item-img od-item-img--empty"><i class="fas fa-image"></i></div>`;
 
           return `
             <div class="od-item">
               ${imgHtml}
               <div class="od-item-info">
-                <div class="name">${safeText(it.name || it.product_name)}</div>
+                <div class="name">${escapeOrderHtml(it.name || it.product_name)}</div>
                 <div class="meta">SL: ${qty} • Đơn giá: ${formatMoneyVND(unit)} VND</div>
               </div>
               <div class="price">${formatMoneyVND(sub)} VND</div>
@@ -342,12 +348,12 @@ function renderOrderDetail(detail) {
       <div class="od-pay-block">
         <div class="od-pay-title">${title}</div>
         <div class="od-kv">
-          <div class="k">Phương thức</div><div>${getPaymentMethodText(effectiveMethod)}</div>
-          <div class="k">Trạng thái</div><div>${getPaymentStatusTextByMethod(pay.status, effectiveMethod)}</div>
-          ${pay.payment_ref ? `<div class="k">Mã thanh toán</div><div>${safeText(pay.payment_ref)}</div>` : ""}
+          <div class="k">Phương thức</div><div>${escapeOrderHtml(getPaymentMethodText(effectiveMethod))}</div>
+          <div class="k">Trạng thái</div><div>${escapeOrderHtml(getPaymentStatusTextByMethod(pay.status, effectiveMethod))}</div>
+          ${pay.payment_ref ? `<div class="k">Mã thanh toán</div><div>${escapeOrderHtml(pay.payment_ref)}</div>` : ""}
           ${pay.amount != null ? `<div class="k">Số tiền</div><div>${formatMoneyVND(pay.amount)} VND</div>` : ""}
-          ${pay.created_at ? `<div class="k">Tạo lúc</div><div>${safeText(pay.created_at)}</div>` : ""}
-          ${pay.updated_at ? `<div class="k">Cập nhật</div><div>${safeText(pay.updated_at)}</div>` : ""}
+          ${pay.created_at ? `<div class="k">Tạo lúc</div><div>${escapeOrderHtml(pay.created_at)}</div>` : ""}
+          ${pay.updated_at ? `<div class="k">Cập nhật</div><div>${escapeOrderHtml(pay.updated_at)}</div>` : ""}
         </div>
       </div>
     `;
@@ -386,9 +392,9 @@ function renderOrderDetail(detail) {
     <div class="od-section">
       <h4><i class="fas fa-receipt"></i> Thông tin đơn hàng</h4>
       <div class="od-kv">
-        <div class="k">Mã đơn</div><div><b>${orderCode}</b></div>
+        <div class="k">Mã đơn</div><div><b>${escapeOrderHtml(orderCode)}</b></div>
         <div class="k">Trạng thái</div><div>${getStatusText(status)}</div>
-        <div class="k">Ngày đặt</div><div>${createdAt || ""}</div>
+        <div class="k">Ngày đặt</div><div>${escapeOrderHtml(createdAt)}</div>
         <div class="k">Tổng tiền</div><div><span style="color:#ff0000; font-weight:800;">${formatMoneyVND(totalAmount)} VND</span></div>
       </div>
     </div>
@@ -396,10 +402,10 @@ function renderOrderDetail(detail) {
     <div class="od-section">
       <h4><i class="fas fa-user"></i> Thông tin khách hàng</h4>
       <div class="od-kv">
-        <div class="k">Họ tên</div><div>${safeText(cust.name)}</div>
-        <div class="k">SĐT</div><div>${safeText(cust.phone)}</div>
-        <div class="k">Email</div><div>${safeText(cust.email)}</div>
-        <div class="k">Địa chỉ</div><div>${safeText(cust.address)}</div>
+        <div class="k">Họ tên</div><div>${escapeOrderHtml(cust.name)}</div>
+        <div class="k">SĐT</div><div>${escapeOrderHtml(cust.phone)}</div>
+        <div class="k">Email</div><div>${escapeOrderHtml(cust.email)}</div>
+        <div class="k">Địa chỉ</div><div>${escapeOrderHtml(cust.address)}</div>
       </div>
     </div>
 
@@ -439,7 +445,7 @@ function renderError(err) {
       <div style="font-weight:700; margin-bottom:6px;">Không thể tải chi tiết đơn hàng</div>
       <div style="font-size:12px; color:#666; margin-bottom:10px;">${hint}</div>
       <div style="text-align:left; background:#fff; border:1px solid #eee; border-radius:12px; padding:10px; font-size:12px; color:#333; max-width:680px; margin:0 auto; overflow:auto;">
-        <div><b>Chi tiết:</b> ${msg}</div>
+        <div><b>Chi tiết:</b> ${escapeOrderHtml(msg)}</div>
       </div>
       <div style="margin-top:12px;">
         <a href="Tra_cuu.html" style="display:inline-block; padding:10px 14px; border-radius:10px; background:#d70018; color:#fff; text-decoration:none;">Quay lại Tra cứu</a>
