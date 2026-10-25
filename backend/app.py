@@ -14,6 +14,7 @@ from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 import urllib.request
 import urllib.error
+from urllib.parse import urlsplit
 from contextlib import contextmanager
 import threading
 from flask import Flask, request, jsonify, send_from_directory, send_file, abort
@@ -164,6 +165,15 @@ class User(db.Model):
     address = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
     updated_at = db.Column(db.DateTime, default=datetime.now, onupdate=datetime.now)
+
+class PasswordResetToken(db.Model):
+    __tablename__ = 'password_reset_tokens'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    token_hash = db.Column(db.String(64), nullable=False, unique=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used_at = db.Column(db.DateTime, nullable=True)
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -356,6 +366,19 @@ def _validated_product_input(data, partial=False):
             raise ValueError('Thông số sản phẩm phải là một đối tượng JSON')
         values['specs'] = json.dumps(specs, ensure_ascii=False)
     return values
+def _password_version(user):
+    return hashlib.sha256(user.password.encode('utf-8')).hexdigest()
+
+
+@jwt.token_in_blocklist_loader
+def _password_changed_since_login(jwt_header, jwt_payload):
+    user = User.query.filter_by(username=jwt_payload.get('sub')).first()
+    # Existing access checks supply the appropriate deleted/locked-user response.
+    if not user:
+        return False
+    return not secrets.compare_digest(str(jwt_payload.get('password_version', '')), _password_version(user))
+
+
 def _get_current_user_entity():
     current_username = get_jwt_identity()
     user = User.query.filter_by(username=current_username).first()
@@ -1019,7 +1042,8 @@ def login():
     if user and bcrypt.check_password_hash(user.password, password) and user.role == required_role:
         if user.is_locked:
             return jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403
-        token = create_access_token(identity=user.username, additional_claims={"role": user.role})
+        token = create_access_token(identity=user.username, additional_claims={
+            "role": user.role, "password_version": _password_version(user)})
         return jsonify({"access_token": token, "role": user.role, "username": user.username}), 200
     return jsonify({"msg": "Sai tài khoản hoặc mật khẩu!"}), 401
 
@@ -1165,7 +1189,7 @@ def update_profile():
         user.address = (data['address'] or '').strip()
     user.updated_at = datetime.now()
     db.session.commit()
-    return jsonify({"msg": "Cập nhật thông tin thành công!"}), 200
+    return jsonify({"msg": "Cập nhật thông tin thành công!", "password_changed": bool(new_pwd)}), 200
 
 # --- BE2: CART / ORDERS / PAYMENT ROUTES ---
 @app.route('/api/cart', methods=['GET'])
@@ -1328,7 +1352,7 @@ def create_order():
                 db.session.rollback()
                 existing = OrderIdempotency.query.filter_by(user_id=user.id, key=idem_key).first()
                 if not existing:
-                    return jsonify({"msg": "Đơn hàng đang được tạo, vui lòng thử lại"}), 409
+                    return jsonify({"msg": "Yêu cầu này chưa thể tạo lại. Vui lòng kiểm tra danh sách đơn hàng."}), 409
                 if existing.request_hash != idem_hash:
                     return jsonify({"msg": "Idempotency-Key đã được dùng cho yêu cầu khác"}), 409
                 if existing.order_id:
@@ -1344,7 +1368,7 @@ def create_order():
                         "email_error": None,
                         "idempotent": True,
                     }), 200
-                return jsonify({"msg": "Đơn hàng đang được tạo, vui lòng chờ...", "idempotent": True}), 409
+                return jsonify({"msg": "Yêu cầu này chưa thể tạo lại. Vui lòng kiểm tra danh sách đơn hàng.", "idempotent": True}), 409
         products = Product.query.filter(Product.id.in_(list(qty_map.keys()))).with_for_update().all()
         prod_map = {p.id: p for p in products}
         for pid in qty_map.keys():
@@ -1978,6 +2002,11 @@ def delete_user(id):
         return jsonify({"msg": "Người dùng không tồn tại"}), 404
     if u.role == 'admin':
         return jsonify({"msg": "Không thể xóa tài khoản Admin"}), 400
+    if Order.query.filter_by(user_id=u.id).first():
+        return jsonify({"msg": "Tài khoản có lịch sử đơn hàng. Hãy khóa thay vì xóa để giữ dữ liệu."}), 409
+    CartItem.query.filter_by(user_id=u.id).delete()
+    PasswordResetToken.query.filter_by(user_id=u.id).delete()
+    OrderIdempotency.query.filter_by(user_id=u.id).delete()
     db.session.delete(u)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -2543,6 +2572,8 @@ def admin_delete_order(order_code):
     if current not in ('completed', 'cancelled'):
         return jsonify({"msg": "Chỉ được xóa đơn completed hoặc cancelled"}), 400
     try:
+        # Keep a retry tombstone without leaving a foreign key to the deleted order.
+        OrderIdempotency.query.filter_by(order_id=order.id).update({'order_id': None})
         Payment.query.filter_by(order_id=order.id).delete()
         OrderItem.query.filter_by(order_id=order.id).delete()
         db.session.delete(order)
@@ -2827,28 +2858,72 @@ def admin_update_order_status(order_code):
 
 @app.route('/api/forgot-password', methods=['POST'])
 def forgot_password():
-    data = request.get_json() or {}
-    email = (data.get('email') or '').strip()
-    if not email or not _is_valid_email(email):
-        return jsonify({"msg": "Email không hợp lệ!"}), 400
-    user = User.query.filter_by(email=email).first()
-    if not user:
-        return jsonify({"msg": "Email không tồn tại trong hệ thống!"}), 404
-    new_pass = secrets.token_urlsafe(18)
     try:
-        user.password = bcrypt.generate_password_hash(new_pass).decode('utf-8')
-        user.updated_at = datetime.now()
-        subject = "NexTech - Cấp lại mật khẩu mới"
-        body = f"Xin chào {user.username},\n\nBạn đã yêu cầu cấp lại mật khẩu tại website NexTech.\n\nMật khẩu mới của bạn là: {new_pass}\n\nVui lòng đăng nhập bằng mật khẩu này và thay đổi mật khẩu ngay lập tức trong mục Cá nhân để đảm bảo an toàn.\n\nTrân trọng,\nNexTech Team"
-        sent, err_code = _send_email_if_configured(email, subject, body)
+        data = _validated_text_fields(request.get_json(silent=True), {'email': 120},
+                                      required=('email',), single_line=('email',))
+    except ValueError as error:
+        return jsonify({"msg": str(error)}), 400
+    email = data['email']
+    if not _is_valid_email(email):
+        return jsonify({"msg": "Email không hợp lệ!"}), 400
+    response = {"msg": "Nếu email hợp lệ trong hệ thống, liên kết đặt lại mật khẩu sẽ được gửi. Vui lòng kiểm tra hộp thư."}
+    user = User.query.filter_by(email=email).first()
+    if not user or user.is_locked:
+        return jsonify(response), 200
+    now = datetime.now()
+    latest = PasswordResetToken.query.filter_by(user_id=user.id).order_by(PasswordResetToken.created_at.desc()).first()
+    if latest and (now - latest.created_at).total_seconds() < 60:
+        return jsonify(response), 200
+    base = os.getenv('PUBLIC_BASE_URL', 'http://127.0.0.1:5001').strip().rstrip('/')
+    parsed = urlsplit(base)
+    if parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.username or parsed.query or parsed.fragment:
+        app.logger.error('Password reset requires a valid PUBLIC_BASE_URL')
+        return jsonify(response), 200
+    token = secrets.token_urlsafe(32)
+    try:
+        PasswordResetToken.query.filter_by(user_id=user.id, used_at=None).update({'used_at': now})
+        db.session.add(PasswordResetToken(user_id=user.id,
+            token_hash=hashlib.sha256(token.encode('utf-8')).hexdigest(),
+            expires_at=now + timedelta(minutes=15), created_at=now))
+        link = f"{base}/pages/reset-password.html?token={token}"
+        body = (f"Xin chào {user.username},\n\nMở liên kết sau để đặt lại mật khẩu:\n{link}\n\n"
+                "Liên kết dùng một lần và hết hạn sau 15 phút. Nếu bạn không yêu cầu, hãy bỏ qua email này. Mật khẩu hiện tại chưa thay đổi.")
+        sent, error = _send_email_if_configured(user.email, 'NexTech - Đặt lại mật khẩu', body)
         if not sent:
             db.session.rollback()
-            return jsonify({"msg": "Không gửi được email. Mật khẩu hiện tại được giữ nguyên."}), 502
+            app.logger.warning('Password reset email could not be delivered: %s', error)
+            return jsonify(response), 200
         db.session.commit()
-        return jsonify({"msg": "Mật khẩu mới đã được gửi vào email của bạn. Vui lòng kiểm tra hộp thư!"}), 200
-    except Exception as e:
+        return jsonify(response), 200
+    except Exception:
         db.session.rollback()
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.exception('Password reset request failed')
+        return jsonify(response), 200
+
+
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"msg": "Dữ liệu không hợp lệ"}), 400
+    token = data.get('token')
+    password = data.get('new_password')
+    if not isinstance(token, str) or not re.fullmatch(r'[A-Za-z0-9_-]{43,128}', token):
+        return jsonify({"msg": "Liên kết không hợp lệ hoặc đã hết hạn"}), 400
+    if not isinstance(password, str) or len(password) < 6 or len(password.encode('utf-8')) > 72:
+        return jsonify({"msg": "Mật khẩu cần ít nhất 6 ký tự và tối đa 72 byte"}), 400
+    now = datetime.now()
+    with _session_begin():
+        record = PasswordResetToken.query.filter_by(token_hash=hashlib.sha256(token.encode('utf-8')).hexdigest()).with_for_update().first()
+        if not record or record.used_at or record.expires_at <= now:
+            return jsonify({"msg": "Liên kết không hợp lệ hoặc đã hết hạn"}), 400
+        user = User.query.filter_by(id=record.user_id).with_for_update().first()
+        if not user or user.is_locked:
+            return jsonify({"msg": "Liên kết không hợp lệ hoặc đã hết hạn"}), 400
+        user.password = bcrypt.generate_password_hash(password).decode('utf-8')
+        user.updated_at = now
+        PasswordResetToken.query.filter_by(user_id=user.id, used_at=None).update({'used_at': now})
+    return jsonify({"msg": "Đã đổi mật khẩu. Vui lòng đăng nhập bằng mật khẩu mới."}), 200
 
 if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')

@@ -221,7 +221,7 @@
             <i class="fas fa-lock-open" style="color: #5d87ff; font-size: 24px;"></i>
           </div>
           <h3 style="margin: 0; color: #1a234a; font-size: 1.4rem; font-weight: 700;">Khôi phục mật khẩu</h3>
-          <p style="font-size: 0.85rem; color: #666; margin-top: 10px; line-height: 1.5;">Đừng lo lắng! Chỉ cần nhập email đã đăng ký, chúng tôi sẽ cấp lại mật khẩu mới cho bạn.</p>
+          <p style="font-size: 0.85rem; color: #666; margin-top: 10px; line-height: 1.5;">Đừng lo lắng! Chỉ cần nhập email đã đăng ký, chúng tôi sẽ gửi liên kết để bạn tự đặt lại mật khẩu.</p>
         </div>
         
         <div class="form-group" style="margin-bottom: 20px; text-align: left;">
@@ -232,7 +232,7 @@
         <div style="display: flex; gap: 12px;">
           <button id="closeForgotModal" style="flex: 1; padding: 14px; border: none; background: #f5f5f5; color: #666; border-radius: 12px; cursor: pointer; font-weight: 600; transition: 0.3s;">Quay lại</button>
           <button id="submitForgotBtn" style="flex: 1.5; padding: 14px; background: #5d87ff; color: white; border: none; border-radius: 12px; cursor: pointer; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px; transition: 0.3s;">
-            <span id="submitForgotText">Gửi mật khẩu</span>
+            <span id="submitForgotText">Gửi liên kết</span>
             <i class="fas fa-circle-notch fa-spin-custom" id="submitForgotSpinner" style="display: none;"></i>
           </button>
         </div>
@@ -360,7 +360,7 @@
         } finally {
           submitForgot.disabled = false;
           spinner.style.display = "none";
-          btnText.innerText = "Gửi mật khẩu";
+          btnText.innerText = "Gửi liên kết";
         }
       });
     </script>

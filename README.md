@@ -55,7 +55,7 @@ Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không 
 Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
 
 ```powershell
-node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs
+node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs
 ```
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.
@@ -92,6 +92,18 @@ Biểu mẫu gửi thông tin cho bộ phận hỗ trợ qua `CONTACT_TO_EMAIL`.
 Đơn online chưa thanh toán vẫn có thể hủy bình thường. Đơn đã thanh toán online cần được hỗ trợ duyệt hoàn tiền trước khi hủy; API trả mã 409 và thông tin `requires_refund` cho trường hợp này. Đường dẫn API hoàn tiền cũ `/api/public/refund-request` được giữ để tương thích nhưng hiện yêu cầu đăng nhập.
 
 Trước khi triển khai, vẫn cần kiểm tra dữ liệu chuyển đổi trên bản sao database, thao tác trong trình duyệt, SMTP và payOS thật.
+
+## Khôi phục mật khẩu và phiên đăng nhập
+
+Chọn **Quên mật khẩu?** ở trang đăng nhập để nhận liên kết đặt lại mật khẩu. Yêu cầu email không làm thay đổi mật khẩu hiện tại. Người dùng mở liên kết, nhập và xác nhận mật khẩu mới rồi đăng nhập lại.
+
+- Liên kết chỉ dùng một lần, hết hạn sau 15 phút; liên kết mới được gửi thành công sẽ thay thế liên kết cũ.
+- Mỗi tài khoản có khoảng chờ 60 giây giữa các lần gửi. Phản hồi yêu cầu không tiết lộ email có tồn tại hay không.
+- Database chỉ lưu mã băm của liên kết. `EMAIL_MODE=file` lưu email thử trong `instance/emails/`; SMTP thật chỉ dùng khi được cấu hình.
+- Đặt `PUBLIC_BASE_URL` thành địa chỉ HTTPS thực tế khi triển khai. Backend dùng địa chỉ này để tạo liên kết, không dùng Host do trình duyệt gửi.
+- Đổi mật khẩu qua hồ sơ hoặc qua liên kết sẽ vô hiệu hóa các phiên đăng nhập cũ. Sau bản cập nhật này, người đang dùng phiên cũ cũng cần đăng nhập lại một lần.
+
+Bảng `password_reset_tokens` được tạo khi backend khởi động; vẫn cần sao lưu và kiểm tra trên bản sao database trước khi cập nhật môi trường đang vận hành. Tài khoản có lịch sử đơn hàng được giữ lại và có thể khóa khi cần. Khi xóa đơn đã kết thúc, hệ thống giữ dấu yêu cầu tạo đơn để việc gửi lặp không tạo lại đơn đã xóa.
 
 ## Cấu trúc
 

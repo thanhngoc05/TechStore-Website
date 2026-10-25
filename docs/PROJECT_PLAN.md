@@ -5,7 +5,8 @@
 - Frontend base, catalog, product detail, authentication, cart, checkout, order detail, payment cancellation and order lookup: merged in PRs #1–#10.
 - Information, policies, services, news and administration interface: PR #11, merged into main.
 - Backend configuration, API, payment verification and automated regression checks: PR #12, merged into main; main checks passed.
-- Follow-up: contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering.
+- Contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering: PR #13, merged into main.
+- Current follow-up: expiring one-time password-reset links, session invalidation after password changes and referential integrity for account/order deletion.
 
 ## Verification completed locally
 
@@ -26,6 +27,8 @@
 - Refund requests require the authenticated owner and a confirmed online payment. A support request does not automatically cancel the order, restock inventory or mark funds refunded.
 - Customer cancellation of a paid online order is blocked until support reviews the refund; unpaid online orders can still be cancelled normally.
 - Order lookup and detail render customer/product text and image attributes as escaped content.
+- Password recovery keeps the old password until the owner confirms a hashed, single-use, 15-minute reset token. Successful password changes revoke existing sessions.
+- Account deletion preserves order history; unused account references are cleaned up. Deleted orders retain idempotency tombstones to prevent accidental recreation.
 
 ## Remaining integration work
 
@@ -33,5 +36,5 @@
 - Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
-- Review account recovery, request limits, uploads and deployment settings before production use.
+- Review request limits across multiple workers, reset-token retention/cleanup, uploads and deployment settings before production use.
 - Add a persistent refund-request queue, review status and provider refund reconciliation; the current form sends a support email only.
