@@ -666,7 +666,7 @@ class BackendTests(unittest.TestCase):
         with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
                 patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
             r = self.client.post('/api/public/refund-request', headers=self.headers, json=payload)
-            self.assertEqual(r.status_code, 200, r.json)
+            self.assertEqual(r.status_code, 201, r.json)
             self.assertIn('PAYOS', send.call_args.args[1])
             self.assertNotIn('forged-provider', send.call_args.args[2])
         self.assertEqual(self.payment_state(), ('success', 'processing'))
@@ -688,7 +688,10 @@ class BackendTests(unittest.TestCase):
         with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
                 patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
             r = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
-            self.assertEqual(r.status_code, 502, r.json)
+            self.assertEqual(r.status_code, 201, r.json)
+            self.assertFalse(r.json['request']['notification_sent'])
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
         self.assertEqual(self.payment_state(), ('success', 'processing'))
 
     def test_paid_online_order_requires_refund_before_cancellation(self):
@@ -857,6 +860,56 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertFalse(r.json['password_changed'])
         self.assertEqual(self.client.get('/api/cart', headers=self.headers).status_code, 200)
+
+    def create_refund_request(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)):
+            response = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+        self.assertEqual(response.status_code, 201, response.json)
+        return code, response.json['request']['id']
+
+    def test_refund_submission_is_deduplicated(self):
+        code, request_id = self.create_refund_request()
+        with patch.object(backend, '_send_email_if_configured') as send:
+            repeated = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+            self.assertEqual(repeated.status_code, 200, repeated.json)
+            self.assertTrue(repeated.json['existing'])
+            self.assertEqual(repeated.json['request']['id'], request_id)
+            send.assert_not_called()
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
+
+    def test_refund_tracking_is_private_and_masks_bank_details(self):
+        self.create_refund_request()
+        response = self.client.get('/api/refund-requests/me', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['total'], 1)
+        record = response.json['items'][0]
+        self.assertEqual(record['account_last4'], '3456')
+        self.assertNotIn('account_number', record)
+        self.register('other')
+        self.assertEqual(self.client.get('/api/refund-requests/me', headers=self.login('other')).json['items'], [])
+        self.assertEqual(self.client.get('/api/refund-requests/me').status_code, 401)
+
+    def test_refund_is_saved_without_notification_receiver(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='', SMTP_USER='', SMTP_FROM=''), \
+                patch.object(backend, '_send_email_if_configured') as send:
+            response = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+            self.assertEqual(response.status_code, 201, response.json)
+            self.assertFalse(response.json['request']['notification_sent'])
+            send.assert_not_called()
+
+    def test_refund_tracking_validates_pagination(self):
+        self.assertEqual(self.client.get('/api/refund-requests/me?page=0', headers=self.headers).status_code, 400)
+        self.assertEqual(self.client.get('/api/refund-requests/me?limit=bad', headers=self.headers).status_code, 400)
 
 
 if __name__ == '__main__':
