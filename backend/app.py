@@ -6,6 +6,7 @@ import importlib.util
 import uuid
 import random
 import secrets
+import click
 import string
 import smtplib
 import ssl
@@ -3060,6 +3061,21 @@ def reset_password():
         user.updated_at = now
         PasswordResetToken.query.filter_by(user_id=user.id, used_at=None).update({'used_at': now})
     return jsonify({"msg": "Đã đổi mật khẩu. Vui lòng đăng nhập bằng mật khẩu mới."}), 200
+
+@app.cli.command('cleanup-reset-tokens')
+@click.option('--retention-days', default=7, type=click.IntRange(1, 365), show_default=True)
+@click.option('--apply', 'apply_changes', is_flag=True, help='Delete matched expired tokens; otherwise only report the count.')
+def cleanup_reset_tokens(retention_days, apply_changes):
+    """Remove only tokens expired longer than the chosen retention period."""
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    query = PasswordResetToken.query.filter(PasswordResetToken.expires_at < cutoff)
+    matched = query.count()
+    deleted = 0
+    if apply_changes:
+        deleted = query.delete(synchronize_session=False)
+        db.session.commit()
+    click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
 
 if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')

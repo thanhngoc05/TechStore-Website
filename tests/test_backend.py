@@ -983,6 +983,38 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(response.json['refund_request']['id'], request_id)
         self.assertNotIn('account_number', response.json['refund_request'])
 
+    def seed_cleanup_tokens(self):
+        with backend.app.app_context():
+            user = backend.User.query.filter_by(username='buyer').one()
+            now = backend.datetime.now()
+            for number, expires in enumerate((now - backend.timedelta(days=8),
+                    now - backend.timedelta(days=1), now + backend.timedelta(minutes=15))):
+                backend.db.session.add(backend.PasswordResetToken(user_id=user.id,
+                    token_hash=str(number) * 64, expires_at=expires))
+            backend.db.session.commit()
+
+    def test_token_cleanup_defaults_to_preview(self):
+        self.seed_cleanup_tokens()
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output), {'matched': 1, 'deleted': 0, 'dry_run': True})
+        with backend.app.app_context():
+            self.assertEqual(backend.PasswordResetToken.query.count(), 3)
+
+    def test_token_cleanup_preserves_recent_and_live_tokens(self):
+        self.seed_cleanup_tokens()
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--apply'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output)['deleted'], 1)
+        with backend.app.app_context():
+            records = backend.PasswordResetToken.query.all()
+            self.assertEqual(len(records), 2)
+            self.assertTrue(any(record.expires_at > backend.datetime.now() for record in records))
+
+    def test_token_cleanup_rejects_invalid_retention(self):
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--retention-days', '0', '--apply'])
+        self.assertNotEqual(result.exit_code, 0)
+
 
 if __name__ == '__main__':
     unittest.main()
