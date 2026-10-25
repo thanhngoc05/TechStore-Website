@@ -192,7 +192,7 @@ function renderOrderActions(detail) {
   const actionsEl = document.createElement("div");
   actionsEl.className = "od-actions";
   actionsEl.innerHTML = canCancel
-    ? `<button type="button" class="od-btn od-btn-danger" id="odCancelBtn"><i class="fas fa-ban"></i> Hủy đơn hàng</button>`
+    ? `<button type="button" class="od-btn od-btn-danger" id="odCancelBtn"><i class="fas fa-ban"></i> ${requiresRefund ? (detail.refund_request ? "Theo dõi yêu cầu" : "Yêu cầu hoàn tiền") : "Hủy đơn hàng"}</button>`
     : "";
     
   if (isCompleted) {
@@ -230,7 +230,7 @@ function renderOrderActions(detail) {
 
         // Paid online orders need support review before cancellation.
         if (requiresRefund) {
-          const nextUrl = `momo-cancel.html?order_code=${encodeURIComponent(code)}`;
+          const nextUrl = detail.refund_request ? "refund-requests.html" : `momo-cancel.html?order_code=${encodeURIComponent(code)}`;
           window.location.href = nextUrl;
           return;
         }
@@ -387,6 +387,13 @@ function renderOrderDetail(detail) {
     paymentHtml = paymentBlock("Thanh toán", payLatest);
   }
 
+  const refund = detail.refund_request;
+  const refundLabels = { pending: "Mới tiếp nhận", reviewing: "Đang kiểm tra", resolved: "Đã xử lý yêu cầu", rejected: "Không chấp nhận" };
+  const refundHtml = refund ? `<div class="od-section"><h4>Yêu cầu hoàn tiền #${Number(refund.id)}</h4>
+    <p>${escapeOrderHtml(refundLabels[refund.status] || refund.status)}</p>
+    <p>${escapeOrderHtml(refund.staff_note || "Chưa có phản hồi từ bộ phận hỗ trợ.")}</p>
+    <p>Trạng thái xử lý yêu cầu không xác nhận tiền đã được hoàn.</p>
+    <a href="refund-requests.html">Theo dõi yêu cầu</a></div>` : "";
   area.innerHTML = `
     <div class="od-actions"></div>
     <div class="od-section">
@@ -418,6 +425,7 @@ function renderOrderDetail(detail) {
       <h4><i class="fas fa-credit-card"></i> Thanh toán</h4>
       ${paymentHtml}
     </div>
+    ${refundHtml}
   `;
 
   // Actions (cancel) rendered after the main HTML is in place

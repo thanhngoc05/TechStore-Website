@@ -537,7 +537,7 @@ function bindCancelOrderHandler() {
     try {
       const detail = await fetchOrderDetail(accessToken, orderCode);
       if (detail.requires_refund === true) {
-        window.location.href = `momo-cancel.html?order_code=${encodeURIComponent(orderCode)}`;
+        window.location.href = detail.refund_request ? "refund-requests.html" : `momo-cancel.html?order_code=${encodeURIComponent(orderCode)}`;
         return;
       }
     } catch (error) {

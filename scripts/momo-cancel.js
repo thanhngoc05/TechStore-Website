@@ -109,8 +109,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      alert("Đã gửi yêu cầu hoàn tiền. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi; đơn hàng chưa được hủy tự động.");
-      window.location.href = "Tra_cuu.html";
+      alert("Yêu cầu đã được lưu để theo dõi. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi; đơn hàng chưa được hủy tự động.");
+      window.location.href = "refund-requests.html";
     } catch (err) {
       console.error(err);
       alert("Không thể kết nối đến server!");

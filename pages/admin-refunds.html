@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Yêu cầu hoàn tiền - Quản trị NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/refund-tracking.css" />
+  </head>
+  <body>
+    <main class="refund-shell">
+      <header><a href="admin.html">← Quản trị</a><h1>Yêu cầu hoàn tiền</h1></header>
+      <p class="notice">Trạng thái dưới đây chỉ theo dõi việc xử lý yêu cầu. Không tự chuyển tiền, hủy đơn hoặc cộng tồn kho.</p>
+      <div class="refund-toolbar">
+        <label for="refundFilter">Trạng thái</label>
+        <select id="refundFilter"><option value="all">Tất cả</option><option value="pending">Mới tiếp nhận</option><option value="reviewing">Đang kiểm tra</option><option value="resolved">Đã xử lý yêu cầu</option><option value="rejected">Không chấp nhận</option></select>
+        <button id="refundReload" type="button">Tải lại</button>
+      </div>
+      <p id="refundAdminMessage" role="status" aria-live="polite"></p>
+      <div class="refund-columns">
+        <section aria-label="Danh sách yêu cầu"><div id="refundQueue"></div>
+          <nav class="refund-toolbar" aria-label="Phân trang"><button id="refundPrev" type="button">Trước</button><span id="refundPage"></span><button id="refundNext" type="button">Sau</button></nav>
+        </section>
+        <section id="refundDetail" class="refund-panel" hidden>
+          <h2 id="refundTitle"></h2>
+          <pre id="refundInfo"></pre>
+          <form id="refundReviewForm">
+            <label for="refundReviewStatus">Trạng thái xử lý</label>
+            <select id="refundReviewStatus"><option value="pending">Mới tiếp nhận</option><option value="reviewing">Đang kiểm tra</option><option value="resolved">Đã xử lý yêu cầu</option><option value="rejected">Không chấp nhận</option></select>
+            <label for="refundStaffNote">Phản hồi cho khách hàng</label>
+            <textarea id="refundStaffNote" rows="4" maxlength="5000" aria-describedby="refundNoteHelp"></textarea>
+            <small id="refundNoteHelp">Khách sẽ thấy nội dung này. Cần nhập phản hồi khi kết thúc hoặc không chấp nhận yêu cầu.</small>
+            <button id="refundSave" type="submit">Lưu cập nhật</button>
+          </form>
+          <h3>Lịch sử xử lý gần đây</h3><pre id="refundAudit"></pre>
+        </section>
+      </div>
+      <p><a href="login.html">Đăng nhập bằng tài khoản quản trị</a></p>
+    </main>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/admin-refunds.js"></script>
+  </body>
+</html>

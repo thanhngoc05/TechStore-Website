@@ -6,6 +6,7 @@ import importlib.util
 import uuid
 import random
 import secrets
+import click
 import string
 import smtplib
 import ssl
@@ -290,6 +291,35 @@ class OrderIdempotency(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.now)
     __table_args__ = (db.UniqueConstraint('user_id', 'key', name='uq_order_idem_user_key'),)
 
+class RefundRequest(db.Model):
+    __tablename__ = 'refund_requests'
+    id = db.Column(db.Integer, primary_key=True)
+    order_id = db.Column(db.Integer, db.ForeignKey('orders.id'), nullable=False, unique=True)
+    status = db.Column(db.String(20), nullable=False, default='pending')
+    revision = db.Column(db.Integer, nullable=False, default=1)
+    name = db.Column(db.String(120), nullable=False)
+    phone = db.Column(db.String(20), nullable=False)
+    email = db.Column(db.String(120), nullable=False, default='')
+    bank_name = db.Column(db.String(120), nullable=False)
+    account_number = db.Column(db.String(100), nullable=False)
+    account_holder = db.Column(db.String(120), nullable=False)
+    note = db.Column(db.Text, nullable=False, default='')
+    staff_note = db.Column(db.Text, nullable=False, default='')
+    reviewed_by = db.Column(db.String(80), nullable=True)
+    notification_sent = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.now, onupdate=datetime.now)
+
+class RefundReviewEvent(db.Model):
+    __tablename__ = 'refund_review_events'
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('refund_requests.id'), nullable=False, index=True)
+    from_status = db.Column(db.String(20), nullable=False)
+    to_status = db.Column(db.String(20), nullable=False)
+    staff_note = db.Column(db.Text, nullable=False)
+    actor = db.Column(db.String(80), nullable=False)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
 # --- HELPERS ---
 
 def _positive_int(value):
@@ -391,6 +421,21 @@ def _get_current_user_entity():
 def _refundable_payment(order):
     return Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
         Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc()).first()
+
+def _refund_payload(record, full=False):
+    order = db.session.get(Order, record.order_id)
+    result = {'id': record.id, 'order_code': order.order_code, 'status': record.status, 'revision': record.revision,
+        'bank_name': record.bank_name, 'account_last4': record.account_number[-4:],
+        'staff_note': record.staff_note, 'created_at': _fmt_dt(record.created_at),
+        'updated_at': _fmt_dt(record.updated_at), 'notification_sent': record.notification_sent}
+    if full:
+        result.update(name=record.name, phone=record.phone, email=record.email,
+            account_number=record.account_number, account_holder=record.account_holder,
+            note=record.note, reviewed_by=record.reviewed_by, amount=order.total_amount)
+        events = RefundReviewEvent.query.filter_by(request_id=record.id).order_by(RefundReviewEvent.id.desc()).limit(20).all()
+        result['events'] = [{'from_status': event.from_status, 'to_status': event.to_status,
+            'staff_note': event.staff_note, 'actor': event.actor, 'created_at': _fmt_dt(event.created_at)} for event in events]
+    return result
 
 def _require_admin():
     user, err = _get_current_user_entity()
@@ -995,36 +1040,59 @@ def public_refund_request():
     except ValueError as error:
         return jsonify({"msg": str(error)}), 400
     order_code, name, phone, email, bank_name, account_number, account_holder, note = (data[field] for field in fields)
-    order = Order.query.filter_by(order_code=order_code, user_id=user.id).first()
-    if not order:
-        return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
-    payment = _refundable_payment(order)
-    if not payment:
-        return jsonify({"msg": "Đơn hàng chưa có thanh toán trực tuyến thành công để hoàn tiền"}), 409
-    payment_method = payment.provider
-    if not order_code or not name or not phone or not bank_name or not account_number or not account_holder:
-        return jsonify({"msg": "Vui lòng nhập đầy đủ thông tin bắt buộc!"}), 400
     if email and not _is_valid_email(email):
-        return jsonify({"msg": "Định dạng Email không hợp lệ!"}), 400
+        return jsonify({"msg": "Định dạng email không hợp lệ"}), 400
+    with _session_begin():
+        order = Order.query.filter_by(order_code=order_code, user_id=user.id).with_for_update().first()
+        if not order:
+            return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
+        existing = RefundRequest.query.filter_by(order_id=order.id).first()
+        if existing:
+            return jsonify({"msg": "Yêu cầu đã được tiếp nhận trước đó", "request": _refund_payload(existing), "existing": True}), 200
+        payment = _refundable_payment(order)
+        if not payment:
+            return jsonify({"msg": "Đơn hàng chưa có thanh toán trực tuyến thành công để hoàn tiền"}), 409
+        record = RefundRequest(order_id=order.id, name=name, phone=phone, email=email,
+            bank_name=bank_name, account_number=account_number, account_holder=account_holder, note=note)
+        db.session.add(record)
+        db.session.flush()
+        record_id = record.id
+        provider = payment.provider
+    # The request is durable before attempting notification. Email failure must not lose it.
     to_email = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
-    if not to_email:
-        return jsonify({"msg": "Chưa cấu hình email nhận yêu cầu.", "email_error": "missing_receiver"}), 500
-    subject = f"NexTech - Yêu cầu hoàn tiền ({payment_method.upper()}) - Mã đơn {order_code}"
-    lines = [
-        f"Yêu cầu hoàn tiền từ website NexTech", "",
-        f"Mã đơn hàng: {order_code}", f"Phương thức thanh toán: {payment_method}", "",
-        f"Họ tên: {name}", f"Số điện thoại: {phone}", f"Email: {email or '(không cung cấp)'}",
-        f"Thời gian: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}", "",
-        "Thông tin hoàn tiền:",
-        f"Ngân hàng: {bank_name}", f"Số tài khoản: {account_number}", f"Chủ tài khoản: {account_holder}"
-    ]
-    if note:
-        lines.extend(["", "Ghi chú:", note])
-    body = "\n".join(lines)
-    sent, email_error = _send_email_if_configured(to_email, subject, body, reply_to_override=email)
-    if not sent:
-        return jsonify({"msg": "Không gửi được yêu cầu hoàn tiền.", "email_error": email_error}), 502
-    return jsonify({"msg": "Gửi yêu cầu hoàn tiền thành công!"}), 200
+    sent = False
+    if to_email:
+        try:
+            sent, error = _send_email_if_configured(to_email,
+                f"NexTech - Yêu cầu hoàn tiền ({provider.upper()}) - Mã đơn {order_code}",
+                f"Yêu cầu #{record_id} đã được lưu.\nMã đơn: {order_code}\nHọ tên: {name}\n"
+                "Vui lòng mở hàng đợi hoàn tiền trong trang quản trị để kiểm tra chi tiết.",
+                reply_to_override=email)
+        except Exception:
+            app.logger.exception('Refund request saved but notification failed')
+    record = db.session.get(RefundRequest, record_id)
+    record.notification_sent = bool(sent) and (os.getenv('EMAIL_MODE') or '').lower() not in ('file', 'console')
+    db.session.commit()
+    return jsonify({"msg": "Đã lưu yêu cầu. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi.",
+                    "request": _refund_payload(record), "existing": False}), 201
+
+
+@app.route('/api/refund-requests/me', methods=['GET'])
+@jwt_required()
+def my_refund_requests():
+    user, err = _get_current_user_entity()
+    if err:
+        return err
+    try:
+        page = _positive_int(request.args.get('page', '1'))
+        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+    except ValueError:
+        return jsonify({"msg": "Phân trang không hợp lệ"}), 400
+    query = RefundRequest.query.join(Order).filter(Order.user_id == user.id)
+    records = query.order_by(RefundRequest.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    return jsonify({'items': [_refund_payload(record) for record in records],
+                    'total': query.count(), 'page': page, 'limit': limit}), 200
+
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -1538,6 +1606,7 @@ def get_order_detail(order_code):
     if payment_method in ('bank', 'napas', 'atm'):
         payment_method = 'payos'
     derived_initial = _initial_payment_from_order(payment_method) if not payments else None
+    refund_record = RefundRequest.query.filter_by(order_id=order.id).first()
     return jsonify({
         "order_code": order.order_code,
         "status": order.status,
@@ -1563,6 +1632,7 @@ def get_order_detail(order_code):
         "payment_latest": _payment_payload(last_payment),
         "payments_count": len(payments),
         "requires_refund": _refundable_payment(order) is not None,
+        "refund_request": _refund_payload(refund_record) if refund_record else None,
     }), 200
 
 @app.route('/api/orders/<string:order_code>/cancel', methods=['PUT'])
@@ -1920,6 +1990,71 @@ def payos_webhook():
         return jsonify({"msg": "Không xử lý được thanh toán"}), 500
 
 # --- ADMIN ROUTES ---
+@app.route('/admin/refund-requests', methods=['GET'])
+@jwt_required()
+def admin_refund_requests():
+    admin, err = _require_admin()
+    if err:
+        return err
+    status = request.args.get('status', 'all')
+    if status not in ('all', 'pending', 'reviewing', 'resolved', 'rejected'):
+        return jsonify({'msg': 'Trạng thái không hợp lệ'}), 400
+    try:
+        page = _positive_int(request.args.get('page', '1'))
+        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+    except ValueError:
+        return jsonify({'msg': 'Phân trang không hợp lệ'}), 400
+    query = RefundRequest.query
+    if status != 'all':
+        query = query.filter_by(status=status)
+    rows = query.order_by(RefundRequest.id.desc()).offset((page - 1) * limit).limit(limit).all()
+    return jsonify({'items': [_refund_payload(row) for row in rows],
+                    'total': query.count(), 'page': page, 'limit': limit}), 200
+
+
+@app.route('/admin/refund-requests/<int:request_id>', methods=['GET', 'PUT'])
+@jwt_required()
+def admin_review_refund(request_id):
+    admin, err = _require_admin()
+    if err:
+        return err
+    if request.method == 'GET':
+        record = db.session.get(RefundRequest, request_id)
+        if not record:
+            return jsonify({'msg': 'Yêu cầu không tồn tại'}), 404
+        return jsonify(_refund_payload(record, full=True)), 200
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'msg': 'Dữ liệu không hợp lệ'}), 400
+    status, note = data.get('status'), data.get('staff_note')
+    if status not in ('pending', 'reviewing', 'resolved', 'rejected') or not isinstance(note, str) or len(note) > 5000:
+        return jsonify({'msg': 'Trạng thái hoặc phản hồi không hợp lệ'}), 400
+    note = note.strip()
+    if status in ('resolved', 'rejected') and not note:
+        return jsonify({'msg': 'Vui lòng nhập phản hồi cho khách trước khi kết thúc yêu cầu'}), 400
+    try:
+        revision = _positive_int(data.get('revision'))
+    except (ValueError, TypeError):
+        return jsonify({'msg': 'Thiếu phiên bản yêu cầu hợp lệ'}), 400
+    with _session_begin():
+        record = RefundRequest.query.filter_by(id=request_id).with_for_update().first()
+        if not record:
+            return jsonify({'msg': 'Yêu cầu không tồn tại'}), 404
+        if record.revision != revision:
+            return jsonify({'msg': 'Yêu cầu đã được người khác cập nhật. Vui lòng tải lại.'}), 409
+        if record.status == status and record.staff_note == note:
+            return jsonify(_refund_payload(record, full=True)), 200
+        transitions = {'pending': ('pending', 'reviewing', 'rejected'),
+                       'reviewing': ('reviewing', 'resolved', 'rejected'), 'resolved': (), 'rejected': ()}
+        if status not in transitions.get(record.status, ()):
+            return jsonify({'msg': 'Không thể chuyển trạng thái yêu cầu theo cách này'}), 409
+        db.session.add(RefundReviewEvent(request_id=record.id, from_status=record.status,
+            to_status=status, staff_note=note, actor=admin.username))
+        record.status, record.staff_note, record.reviewed_by = status, note, admin.username
+        record.revision += 1
+    return jsonify(_refund_payload(record, full=True)), 200
+
+
 @app.route('/admin/dashboard/stats', methods=['GET'])
 @jwt_required()
 def get_dashboard_stats():
@@ -2571,6 +2706,8 @@ def admin_delete_order(order_code):
     current = (order.status or '').lower()
     if current not in ('completed', 'cancelled'):
         return jsonify({"msg": "Chỉ được xóa đơn completed hoặc cancelled"}), 400
+    if RefundRequest.query.filter_by(order_id=order.id).first():
+        return jsonify({'msg': 'Đơn hàng có hồ sơ hoàn tiền cần được lưu lại để đối chiếu.'}), 409
     try:
         # Keep a retry tombstone without leaving a foreign key to the deleted order.
         OrderIdempotency.query.filter_by(order_id=order.id).update({'order_id': None})
@@ -2924,6 +3061,21 @@ def reset_password():
         user.updated_at = now
         PasswordResetToken.query.filter_by(user_id=user.id, used_at=None).update({'used_at': now})
     return jsonify({"msg": "Đã đổi mật khẩu. Vui lòng đăng nhập bằng mật khẩu mới."}), 200
+
+@app.cli.command('cleanup-reset-tokens')
+@click.option('--retention-days', default=7, type=click.IntRange(1, 365), show_default=True)
+@click.option('--apply', 'apply_changes', is_flag=True, help='Delete matched expired tokens; otherwise only report the count.')
+def cleanup_reset_tokens(retention_days, apply_changes):
+    """Remove only tokens expired longer than the chosen retention period."""
+    cutoff = datetime.now() - timedelta(days=retention_days)
+    query = PasswordResetToken.query.filter(PasswordResetToken.expires_at < cutoff)
+    matched = query.count()
+    deleted = 0
+    if apply_changes:
+        deleted = query.delete(synchronize_session=False)
+        db.session.commit()
+    click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
 
 if __name__ == '__main__':
     debug = os.getenv('FLASK_DEBUG', '0').lower() in ('1', 'true', 'yes')

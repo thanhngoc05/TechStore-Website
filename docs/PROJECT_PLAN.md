@@ -6,11 +6,12 @@
 - Information, policies, services, news and administration interface: PR #11, merged into main.
 - Backend configuration, API, payment verification and automated regression checks: PR #12, merged into main; main checks passed.
 - Contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering: PR #13, merged into main.
-- Current follow-up: expiring one-time password-reset links, session invalidation after password changes and referential integrity for account/order deletion.
+- Expiring password-reset links, session invalidation and deletion integrity: PR #14, merged into main.
+- Current follow-up: durable refund request queue, review/audit workflow, customer tracking and reset-token retention tooling.
 
 ## Verification completed locally
 
-- Frontend JavaScript syntax and local references across 31 HTML pages.
+- Frontend JavaScript syntax and local references across 34 HTML pages.
 - Isolated SQLite API tests for authentication, authorization, cart, stock, order cancellation and public endpoints.
 - Payment tests use a real SDK signature verifier and mocked provider responses; no money moves.
 - Checkout return handling verifies payment through the authenticated API, with nine JavaScript regression scenarios.
@@ -29,6 +30,10 @@
 - Order lookup and detail render customer/product text and image attributes as escaped content.
 - Password recovery keeps the old password until the owner confirms a hashed, single-use, 15-minute reset token. Successful password changes revoke existing sessions.
 - Account deletion preserves order history; unused account references are cleaned up. Deleted orders retain idempotency tombstones to prevent accidental recreation.
+- Refund requests are stored before email notification and deduplicated by order. Masked tracking is private to the owner.
+- Admin review uses status transitions, mandatory final feedback, optimistic revisions and persistent audit history. Review does not execute financial or inventory actions.
+- Customer tracking is available from profile, the request form and order details; all customer/staff content is rendered as text.
+- The cleanup-reset-tokens CLI previews expired-token retention cleanup unless --apply is explicitly supplied; it does not schedule a job.
 
 ## Remaining integration work
 
@@ -36,5 +41,6 @@
 - Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
-- Review request limits across multiple workers, reset-token retention/cleanup, uploads and deployment settings before production use.
-- Add a persistent refund-request queue, review status and provider refund reconciliation; the current form sends a support email only.
+- Review request limits across multiple workers, retention policy, uploads and deployment settings before production use.
+- Implement and verify provider-side refund execution/reconciliation separately. A resolved support request is not evidence of a financial refund.
+- Define retention/access policy for stored refund bank details and notifications that need retrying after a mail failure.

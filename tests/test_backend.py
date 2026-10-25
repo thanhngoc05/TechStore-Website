@@ -666,7 +666,7 @@ class BackendTests(unittest.TestCase):
         with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
                 patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
             r = self.client.post('/api/public/refund-request', headers=self.headers, json=payload)
-            self.assertEqual(r.status_code, 200, r.json)
+            self.assertEqual(r.status_code, 201, r.json)
             self.assertIn('PAYOS', send.call_args.args[1])
             self.assertNotIn('forged-provider', send.call_args.args[2])
         self.assertEqual(self.payment_state(), ('success', 'processing'))
@@ -688,7 +688,10 @@ class BackendTests(unittest.TestCase):
         with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
                 patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
             r = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
-            self.assertEqual(r.status_code, 502, r.json)
+            self.assertEqual(r.status_code, 201, r.json)
+            self.assertFalse(r.json['request']['notification_sent'])
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
         self.assertEqual(self.payment_state(), ('success', 'processing'))
 
     def test_paid_online_order_requires_refund_before_cancellation(self):
@@ -857,6 +860,160 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertFalse(r.json['password_changed'])
         self.assertEqual(self.client.get('/api/cart', headers=self.headers).status_code, 200)
+
+    def create_refund_request(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)):
+            response = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+        self.assertEqual(response.status_code, 201, response.json)
+        return code, response.json['request']['id']
+
+    def test_refund_submission_is_deduplicated(self):
+        code, request_id = self.create_refund_request()
+        with patch.object(backend, '_send_email_if_configured') as send:
+            repeated = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+            self.assertEqual(repeated.status_code, 200, repeated.json)
+            self.assertTrue(repeated.json['existing'])
+            self.assertEqual(repeated.json['request']['id'], request_id)
+            send.assert_not_called()
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
+
+    def test_refund_tracking_is_private_and_masks_bank_details(self):
+        self.create_refund_request()
+        response = self.client.get('/api/refund-requests/me', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['total'], 1)
+        record = response.json['items'][0]
+        self.assertEqual(record['account_last4'], '3456')
+        self.assertNotIn('account_number', record)
+        self.register('other')
+        self.assertEqual(self.client.get('/api/refund-requests/me', headers=self.login('other')).json['items'], [])
+        self.assertEqual(self.client.get('/api/refund-requests/me').status_code, 401)
+
+    def test_refund_is_saved_without_notification_receiver(self):
+        code = self.pending_payment()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        with patch.dict(os.environ, CONTACT_TO_EMAIL='', SMTP_USER='', SMTP_FROM=''), \
+                patch.object(backend, '_send_email_if_configured') as send:
+            response = self.client.post('/api/public/refund-request', headers=self.headers, json=self.refund_payload(code))
+            self.assertEqual(response.status_code, 201, response.json)
+            self.assertFalse(response.json['request']['notification_sent'])
+            send.assert_not_called()
+
+    def test_refund_tracking_validates_pagination(self):
+        self.assertEqual(self.client.get('/api/refund-requests/me?page=0', headers=self.headers).status_code, 400)
+        self.assertEqual(self.client.get('/api/refund-requests/me?limit=bad', headers=self.headers).status_code, 400)
+
+    def test_refund_admin_access_and_detail_privacy(self):
+        code, request_id = self.create_refund_request()
+        self.assertEqual(self.client.get('/admin/refund-requests', headers=self.headers).status_code, 403)
+        self.assertEqual(self.client.get(f'/admin/refund-requests/{request_id}', headers=self.headers).status_code, 403)
+        self.make_admin()
+        listing = self.client.get('/admin/refund-requests', headers=self.headers)
+        self.assertEqual(listing.status_code, 200)
+        self.assertNotIn('account_number', listing.json['items'][0])
+        detail = self.client.get(f'/admin/refund-requests/{request_id}', headers=self.headers)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json['account_number'], '123456')
+
+    def test_refund_review_tracks_audit_without_changing_payment_or_stock(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        url = f'/admin/refund-requests/{request_id}'
+        for revision, status, note in ((1, 'reviewing', 'Đang kiểm tra'), (2, 'resolved', 'Đã liên hệ khách để đối chiếu')):
+            response = self.client.put(url, headers=self.headers,
+                json={'revision': revision, 'status': status, 'staff_note': note})
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(response.json['revision'], revision + 1)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundReviewEvent.query.count(), 2)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+        tracking = self.client.get('/api/refund-requests/me', headers=self.headers).json['items'][0]
+        self.assertEqual(tracking['status'], 'resolved')
+        self.assertEqual(tracking['staff_note'], 'Đã liên hệ khách để đối chiếu')
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 3, 'status': 'reviewing', 'staff_note': 'Reopen'}).status_code, 409)
+
+    def test_refund_review_rejects_stale_revision_and_invalid_transition(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        url = f'/admin/refund-requests/{request_id}'
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'resolved', 'staff_note': 'Premature'}).status_code, 409)
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'reviewing', 'staff_note': 'Review'}).status_code, 200)
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'rejected', 'staff_note': 'Stale update'}).status_code, 409)
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundReviewEvent.query.count(), 1)
+            self.assertEqual(backend.RefundRequest.query.one().status, 'reviewing')
+
+    def test_refund_admin_validates_input_and_filters(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        for body in ([], {}, {'revision': 1, 'status': 'rejected', 'staff_note': ''},
+                     {'revision': 1, 'status': 'unknown', 'staff_note': 'Test'}):
+            self.assertEqual(self.client.put(f'/admin/refund-requests/{request_id}', headers=self.headers, json=body).status_code, 400)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=unknown', headers=self.headers).status_code, 400)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=pending', headers=self.headers).json['total'], 1)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=resolved', headers=self.headers).json['items'], [])
+
+    def test_refund_order_cannot_be_deleted(self):
+        code, request_id = self.create_refund_request()
+        with backend.app.app_context():
+            backend.Order.query.one().status = 'cancelled'
+            backend.db.session.commit()
+        self.make_admin()
+        self.assertEqual(self.client.delete('/admin/orders/' + code, headers=self.headers).status_code, 409)
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
+
+    def test_order_detail_includes_masked_refund_tracking(self):
+        code, request_id = self.create_refund_request()
+        response = self.client.get('/api/orders/' + code, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['refund_request']['id'], request_id)
+        self.assertNotIn('account_number', response.json['refund_request'])
+
+    def seed_cleanup_tokens(self):
+        with backend.app.app_context():
+            user = backend.User.query.filter_by(username='buyer').one()
+            now = backend.datetime.now()
+            for number, expires in enumerate((now - backend.timedelta(days=8),
+                    now - backend.timedelta(days=1), now + backend.timedelta(minutes=15))):
+                backend.db.session.add(backend.PasswordResetToken(user_id=user.id,
+                    token_hash=str(number) * 64, expires_at=expires))
+            backend.db.session.commit()
+
+    def test_token_cleanup_defaults_to_preview(self):
+        self.seed_cleanup_tokens()
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output), {'matched': 1, 'deleted': 0, 'dry_run': True})
+        with backend.app.app_context():
+            self.assertEqual(backend.PasswordResetToken.query.count(), 3)
+
+    def test_token_cleanup_preserves_recent_and_live_tokens(self):
+        self.seed_cleanup_tokens()
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--apply'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output)['deleted'], 1)
+        with backend.app.app_context():
+            records = backend.PasswordResetToken.query.all()
+            self.assertEqual(len(records), 2)
+            self.assertTrue(any(record.expires_at > backend.datetime.now() for record in records))
+
+    def test_token_cleanup_rejects_invalid_retention(self):
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--retention-days', '0', '--apply'])
+        self.assertNotEqual(result.exit_code, 0)
 
 
 if __name__ == '__main__':

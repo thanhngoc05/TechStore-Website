@@ -55,7 +55,7 @@ Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không 
 Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
 
 ```powershell
-node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs
+node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs tests/admin-refunds.test.cjs tests/customer-refunds.test.cjs
 ```
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.
@@ -87,7 +87,13 @@ Dòng đầu chọn database thử với thông tin tài khoản do bạn tạo.
 
 Chủ đơn đăng nhập rồi mở yêu cầu hoàn tiền từ chi tiết hoặc trang tra cứu đơn hàng. Chỉ đơn có thanh toán trực tuyến thành công mới gửi được yêu cầu; dữ liệu thanh toán được đối chiếu ở backend.
 
-Biểu mẫu gửi thông tin cho bộ phận hỗ trợ qua `CONTACT_TO_EMAIL`. Thông báo gửi thành công chỉ xác nhận đã gửi yêu cầu: tiền chưa được hoàn, đơn chưa bị hủy và tồn kho chưa được cộng lại. Bộ phận hỗ trợ cần kiểm tra giao dịch và xử lý hoàn tiền riêng.
+Biểu mẫu lưu hồ sơ vào database trước, sau đó mới thử thông báo cho `CONTACT_TO_EMAIL`. Email lỗi hoặc chưa cấu hình không làm mất hồ sơ. Một đơn có một hồ sơ: gửi lại trả về yêu cầu đã lưu, không tạo bản trùng hoặc gửi lại email.
+
+Khách theo dõi tại `pages/refund-requests.html`, từ hồ sơ cá nhân hoặc chi tiết đơn hàng. Quản trị viên mở **Yêu cầu hoàn tiền** trong trang quản trị để xem hàng đợi, thông tin ngân hàng và cập nhật phản hồi cho khách.
+
+Các trạng thái xử lý: **Mới tiếp nhận → Đang kiểm tra → Đã xử lý yêu cầu**, hoặc **Không chấp nhận**. Khi kết thúc hoặc từ chối phải nhập phản hồi; yêu cầu đã kết thúc không mở lại qua giao diện hiện tại. Lịch sử lưu người xử lý và nội dung thay đổi. Nếu hai người cùng cập nhật, người dùng bản cũ phải tải lại trước khi lưu.
+
+Trạng thái **Đã xử lý yêu cầu không xác nhận tiền đã được hoàn**. Không trạng thái nào tự chuyển tiền, hủy đơn hay cộng lại tồn kho. Bộ phận hỗ trợ vẫn cần kiểm tra giao dịch và xử lý hoàn tiền riêng. Tài khoản ngân hàng đầy đủ chỉ được trả về ở API chi tiết dành cho quản trị viên; danh sách và phần theo dõi của khách chỉ hiển thị bốn ký tự cuối.
 
 Đơn online chưa thanh toán vẫn có thể hủy bình thường. Đơn đã thanh toán online cần được hỗ trợ duyệt hoàn tiền trước khi hủy; API trả mã 409 và thông tin `requires_refund` cho trường hợp này. Đường dẫn API hoàn tiền cũ `/api/public/refund-request` được giữ để tương thích nhưng hiện yêu cầu đăng nhập.
 
@@ -104,6 +110,22 @@ Chọn **Quên mật khẩu?** ở trang đăng nhập để nhận liên kết 
 - Đổi mật khẩu qua hồ sơ hoặc qua liên kết sẽ vô hiệu hóa các phiên đăng nhập cũ. Sau bản cập nhật này, người đang dùng phiên cũ cũng cần đăng nhập lại một lần.
 
 Bảng `password_reset_tokens` được tạo khi backend khởi động; vẫn cần sao lưu và kiểm tra trên bản sao database trước khi cập nhật môi trường đang vận hành. Tài khoản có lịch sử đơn hàng được giữ lại và có thể khóa khi cần. Khi xóa đơn đã kết thúc, hệ thống giữ dấu yêu cầu tạo đơn để việc gửi lặp không tạo lại đơn đã xóa.
+
+## Dọn mã khôi phục cũ
+
+```powershell
+.venv/Scripts/python.exe -m flask --app backend/app.py cleanup-reset-tokens
+```
+
+Lệnh này chỉ thống kê mã đã hết hạn hơn 7 ngày, chưa xóa dữ liệu. Sau khi kiểm tra số lượng, dùng:
+
+```powershell
+.venv/Scripts/python.exe -m flask --app backend/app.py cleanup-reset-tokens --retention-days 7 --apply
+```
+
+Lệnh thứ hai xóa đúng nhóm mã đã hết hạn quá thời gian lưu đã chọn; giữ nguyên mã còn hiệu lực và mã mới hết hạn. Không có lịch chạy tự động được tạo.
+
+Đợt theo dõi hoàn tiền bổ sung bảng `refund_requests` và `refund_review_events`, được tạo khi backend khởi động. Đơn có hồ sơ hoàn tiền không được xóa để giữ dữ liệu đối chiếu. Các hồ sơ chứa thông tin khách và ngân hàng; chỉ cấp quyền truy cập database và quản trị cho người phụ trách.
 
 ## Cấu trúc
 
