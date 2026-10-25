@@ -911,6 +911,71 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.get('/api/refund-requests/me?page=0', headers=self.headers).status_code, 400)
         self.assertEqual(self.client.get('/api/refund-requests/me?limit=bad', headers=self.headers).status_code, 400)
 
+    def test_refund_admin_access_and_detail_privacy(self):
+        code, request_id = self.create_refund_request()
+        self.assertEqual(self.client.get('/admin/refund-requests', headers=self.headers).status_code, 403)
+        self.assertEqual(self.client.get(f'/admin/refund-requests/{request_id}', headers=self.headers).status_code, 403)
+        self.make_admin()
+        listing = self.client.get('/admin/refund-requests', headers=self.headers)
+        self.assertEqual(listing.status_code, 200)
+        self.assertNotIn('account_number', listing.json['items'][0])
+        detail = self.client.get(f'/admin/refund-requests/{request_id}', headers=self.headers)
+        self.assertEqual(detail.status_code, 200)
+        self.assertEqual(detail.json['account_number'], '123456')
+
+    def test_refund_review_tracks_audit_without_changing_payment_or_stock(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        url = f'/admin/refund-requests/{request_id}'
+        for revision, status, note in ((1, 'reviewing', 'Đang kiểm tra'), (2, 'resolved', 'Đã liên hệ khách để đối chiếu')):
+            response = self.client.put(url, headers=self.headers,
+                json={'revision': revision, 'status': status, 'staff_note': note})
+            self.assertEqual(response.status_code, 200, response.json)
+            self.assertEqual(response.json['revision'], revision + 1)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundReviewEvent.query.count(), 2)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+        tracking = self.client.get('/api/refund-requests/me', headers=self.headers).json['items'][0]
+        self.assertEqual(tracking['status'], 'resolved')
+        self.assertEqual(tracking['staff_note'], 'Đã liên hệ khách để đối chiếu')
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 3, 'status': 'reviewing', 'staff_note': 'Reopen'}).status_code, 409)
+
+    def test_refund_review_rejects_stale_revision_and_invalid_transition(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        url = f'/admin/refund-requests/{request_id}'
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'resolved', 'staff_note': 'Premature'}).status_code, 409)
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'reviewing', 'staff_note': 'Review'}).status_code, 200)
+        self.assertEqual(self.client.put(url, headers=self.headers,
+            json={'revision': 1, 'status': 'rejected', 'staff_note': 'Stale update'}).status_code, 409)
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundReviewEvent.query.count(), 1)
+            self.assertEqual(backend.RefundRequest.query.one().status, 'reviewing')
+
+    def test_refund_admin_validates_input_and_filters(self):
+        code, request_id = self.create_refund_request()
+        self.make_admin()
+        for body in ([], {}, {'revision': 1, 'status': 'rejected', 'staff_note': ''},
+                     {'revision': 1, 'status': 'unknown', 'staff_note': 'Test'}):
+            self.assertEqual(self.client.put(f'/admin/refund-requests/{request_id}', headers=self.headers, json=body).status_code, 400)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=unknown', headers=self.headers).status_code, 400)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=pending', headers=self.headers).json['total'], 1)
+        self.assertEqual(self.client.get('/admin/refund-requests?status=resolved', headers=self.headers).json['items'], [])
+
+    def test_refund_order_cannot_be_deleted(self):
+        code, request_id = self.create_refund_request()
+        with backend.app.app_context():
+            backend.Order.query.one().status = 'cancelled'
+            backend.db.session.commit()
+        self.make_admin()
+        self.assertEqual(self.client.delete('/admin/orders/' + code, headers=self.headers).status_code, 409)
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundRequest.query.count(), 1)
+
 
 if __name__ == '__main__':
     unittest.main()
