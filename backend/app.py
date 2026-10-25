@@ -534,9 +534,10 @@ def _refund_payload(record, full=False):
         result['notification'] = _refund_notification_state(record)
     return result
 
-def _refund_notification_state(record):
+def _refund_notification_state(record, lock=False):
     query = RefundNotificationAttempt.query.filter_by(request_id=record.id)
-    latest = query.order_by(RefundNotificationAttempt.id.desc()).first()
+    latest_query = query.order_by(RefundNotificationAttempt.id.desc())
+    latest = (latest_query.with_for_update() if lock else latest_query).first()
     state = 'sent' if record.notification_sent else (latest.outcome if latest else 'pending')
     dev_mode = (os.getenv('EMAIL_MODE') or '').strip().lower() in ('file', 'console')
     return {'state': state, 'attempts': query.count(), 'error_code': latest.error_code if latest else None,
@@ -546,9 +547,10 @@ def _refund_notification_state(record):
 def _deliver_refund_notification(request_id):
     # Serialize delivery attempts for one request across application workers.
     with _session_begin():
-        record = RefundRequest.query.filter_by(id=request_id).with_for_update().one()
-        if not _refund_notification_state(record)['retry_allowed']:
-            return _refund_notification_state(record)
+        record = RefundRequest.query.filter_by(id=request_id).populate_existing().with_for_update().one()
+        state = _refund_notification_state(record, lock=True)
+        if not state['retry_allowed']:
+            return state
         receiver = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
         sent, error = False, 'missing_receiver'
         if receiver:
