@@ -1015,6 +1015,28 @@ class BackendTests(unittest.TestCase):
         result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--retention-days', '0', '--apply'])
         self.assertNotEqual(result.exit_code, 0)
 
+    def test_auth_rate_limit_persists_and_expires_by_window(self):
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(2, 60)), \
+                patch.object(backend.time, 'time', return_value=120):
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+            response = self.client.post('/login', json={})
+            self.assertEqual(response.status_code, 429)
+            self.assertEqual(response.headers['Retry-After'], '60')
+            self.assertEqual(backend.app.test_client().post('/login', json={}).status_code, 429)
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(2, 60)), \
+                patch.object(backend.time, 'time', return_value=180):
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+
+    def test_auth_rate_limit_does_not_trust_forwarded_ip(self):
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(1, 60)), \
+                patch.object(backend.time, 'time', return_value=120):
+            self.assertEqual(self.client.post('/login', json={}, headers={'X-Forwarded-For': '1.1.1.1'}).status_code, 400)
+            self.assertEqual(self.client.post('/login', json={}, headers={'X-Forwarded-For': '2.2.2.2'}).status_code, 429)
+            self.assertEqual(self.client.post('/login', json={}, environ_overrides={'REMOTE_ADDR': '127.0.0.2'}).status_code, 400)
+        with backend.app.app_context():
+            self.assertTrue(all(len(row.key_hash) == 64 for row in backend.RequestRateBucket.query.all()))
+
 
 if __name__ == '__main__':
     unittest.main()

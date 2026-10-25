@@ -2,6 +2,7 @@ import re
 import os
 import json
 import hashlib
+import hmac
 import importlib.util
 import uuid
 import random
@@ -42,8 +43,10 @@ from reportlab.lib.units import mm
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect, func
-from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError
+from sqlalchemy import inspect, func, select, case
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError, SQLAlchemyError
 
 # Load local .env (dev)
 try:
@@ -175,6 +178,12 @@ class PasswordResetToken(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
     expires_at = db.Column(db.DateTime, nullable=False)
     used_at = db.Column(db.DateTime, nullable=True)
+
+class RequestRateBucket(db.Model):
+    __tablename__ = 'request_rate_buckets'
+    key_hash = db.Column(db.String(64), primary_key=True)
+    hits = db.Column(db.Integer, nullable=False, default=1)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -321,6 +330,47 @@ class RefundReviewEvent(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
 # --- HELPERS ---
+app.config['RATE_LIMIT_ENABLED'] = os.getenv('RATE_LIMIT_ENABLED', '1').lower() not in ('0', 'false', 'no')
+app.config['REQUEST_RATE_LIMITS'] = {
+    'login': (30, 60), 'register': (10, 60),
+    'forgot_password': (5, 60), 'reset_password': (10, 60),
+}
+
+
+@app.before_request
+def enforce_request_rate_limit():
+    rule = app.config['REQUEST_RATE_LIMITS'].get(request.endpoint)
+    if not app.config['RATE_LIMIT_ENABLED'] or not rule or request.method not in ('POST', 'PUT', 'DELETE'):
+        return None
+    limit, seconds = rule
+    now = int(time.time())
+    window = now // seconds
+    identity = f'{request.endpoint}|{request.remote_addr or "unknown"}|{window}'
+    key = hmac.new(app.config['JWT_SECRET_KEY'].encode(), identity.encode(), hashlib.sha256).hexdigest()
+    table = RequestRateBucket.__table__
+    values = {'key_hash': key, 'hits': 1, 'expires_at': datetime.fromtimestamp((window + 1) * seconds) + timedelta(days=1)}
+    increment = case((table.c.hits < limit + 1, table.c.hits + 1), else_=table.c.hits)
+    try:
+        with db.engine.begin() as connection:
+            if connection.dialect.name == 'sqlite':
+                statement = sqlite_insert(table).values(**values).on_conflict_do_update(
+                    index_elements=['key_hash'], set_={'hits': increment})
+            elif connection.dialect.name == 'mysql':
+                statement = mysql_insert(table).values(**values).on_duplicate_key_update(hits=increment)
+            else:
+                return jsonify({'msg': 'Database chưa hỗ trợ giới hạn yêu cầu.'}), 503
+            connection.execute(statement)
+            hits = connection.execute(select(table.c.hits).where(table.c.key_hash == key)).scalar_one()
+    except SQLAlchemyError:
+        app.logger.exception('Request rate storage unavailable')
+        return jsonify({'msg': 'Tạm thời chưa xử lý được yêu cầu. Vui lòng thử lại.'}), 503
+    if hits > limit:
+        retry_after = (window + 1) * seconds - now
+        response = jsonify({'msg': 'Bạn thao tác quá nhanh. Vui lòng chờ rồi thử lại.', 'retry_after': retry_after})
+        response.status_code = 429
+        response.headers['Retry-After'] = str(retry_after)
+        return response
+
 
 def _positive_int(value):
     if isinstance(value, bool) or not isinstance(value, (int, str)):
