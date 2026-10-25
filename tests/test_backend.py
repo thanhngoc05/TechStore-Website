@@ -1092,6 +1092,41 @@ class BackendTests(unittest.TestCase):
             self.assertNotIn('secret', response.get_data(as_text=True))
             self.assertEqual(self.client.get('/api/health').status_code, 200)
 
+    def test_failed_refund_notification_can_be_retried_by_admin(self):
+        code, request_id = self.create_refund_request()
+        with backend.app.app_context():
+            record = backend.db.session.get(backend.RefundRequest, request_id)
+            record.notification_sent = False
+            attempt = backend.RefundNotificationAttempt.query.filter_by(request_id=request_id).one()
+            attempt.outcome, attempt.error_code = 'failed', 'initial_failure'
+            backend.db.session.commit()
+        url = f'/admin/refund-requests/{request_id}/notification'
+        self.assertEqual(self.client.post(url, headers=self.headers).status_code, 403)
+        self.make_admin()
+        with patch.dict(os.environ, EMAIL_MODE='smtp', CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
+            response = self.client.post(url, headers=self.headers)
+            self.assertEqual(response.json['notification']['state'], 'failed')
+        with patch.dict(os.environ, EMAIL_MODE='smtp', CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            response = self.client.post(url, headers=self.headers)
+            self.assertEqual(response.json['notification']['state'], 'sent')
+            self.client.post(url, headers=self.headers)
+            self.assertEqual(send.call_count, 1)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundNotificationAttempt.query.count(), 3)
+
+    def test_simulated_refund_notification_is_not_reported_as_real_delivery(self):
+        with patch.dict(os.environ, EMAIL_MODE='file'):
+            code, request_id = self.create_refund_request()
+            self.make_admin()
+            with patch.object(backend, '_send_email_if_configured') as send:
+                result = self.client.post(f'/admin/refund-requests/{request_id}/notification', headers=self.headers)
+                self.assertEqual(result.json['notification']['state'], 'simulated')
+                self.assertFalse(result.json['notification']['retry_allowed'])
+                send.assert_not_called()
+
 
 if __name__ == '__main__':
     unittest.main()

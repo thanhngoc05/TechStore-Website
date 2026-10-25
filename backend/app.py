@@ -331,6 +331,14 @@ class RefundReviewEvent(db.Model):
     actor = db.Column(db.String(80), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
+class RefundNotificationAttempt(db.Model):
+    __tablename__ = 'refund_notification_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('refund_requests.id'), nullable=False, index=True)
+    outcome = db.Column(db.String(16), nullable=False)
+    error_code = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
 # --- HELPERS ---
 app.config['RATE_LIMIT_ENABLED'] = os.getenv('RATE_LIMIT_ENABLED', '1').lower() not in ('0', 'false', 'no')
 app.config['REQUEST_RATE_LIMITS'] = {
@@ -516,7 +524,46 @@ def _refund_payload(record, full=False):
         events = RefundReviewEvent.query.filter_by(request_id=record.id).order_by(RefundReviewEvent.id.desc()).limit(20).all()
         result['events'] = [{'from_status': event.from_status, 'to_status': event.to_status,
             'staff_note': event.staff_note, 'actor': event.actor, 'created_at': _fmt_dt(event.created_at)} for event in events]
+        result['notification'] = _refund_notification_state(record)
     return result
+
+def _refund_notification_state(record):
+    query = RefundNotificationAttempt.query.filter_by(request_id=record.id)
+    latest = query.order_by(RefundNotificationAttempt.id.desc()).first()
+    state = 'sent' if record.notification_sent else (latest.outcome if latest else 'pending')
+    dev_mode = (os.getenv('EMAIL_MODE') or '').strip().lower() in ('file', 'console')
+    return {'state': state, 'attempts': query.count(), 'error_code': latest.error_code if latest else None,
+            'retry_allowed': state != 'sent' and (state != 'simulated' or not dev_mode)}
+
+
+def _deliver_refund_notification(request_id):
+    # Serialize delivery attempts for one request across application workers.
+    with _session_begin():
+        record = RefundRequest.query.filter_by(id=request_id).with_for_update().one()
+        if not _refund_notification_state(record)['retry_allowed']:
+            return _refund_notification_state(record)
+        receiver = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
+        sent, error = False, 'missing_receiver'
+        if receiver:
+            order = db.session.get(Order, record.order_id)
+            payment = _refundable_payment(order)
+            provider = payment.provider if payment else 'online'
+            try:
+                sent, error = _send_email_if_configured(receiver,
+                    f'NexTech - Yêu cầu hoàn tiền ({provider.upper()}) - Mã đơn {order.order_code}',
+                    f'Yêu cầu #{record.id} đã được lưu.\nMã đơn: {order.order_code}\nHọ tên: {record.name}\n'
+                    'Vui lòng mở hàng đợi hoàn tiền trong trang quản trị để kiểm tra chi tiết.',
+                    reply_to_override=record.email)
+            except Exception:
+                app.logger.exception('Refund notification delivery failed')
+                sent, error = False, 'delivery_exception'
+        dev_mode = (os.getenv('EMAIL_MODE') or '').strip().lower() in ('file', 'console')
+        outcome = ('simulated' if dev_mode else 'sent') if sent else 'failed'
+        record.notification_sent = outcome == 'sent'
+        safe_error = error if isinstance(error, str) and re.fullmatch(r'[a-z0-9_]{1,80}', error) else 'delivery_failed'
+        db.session.add(RefundNotificationAttempt(request_id=record.id, outcome=outcome,
+                                                error_code=None if sent else safe_error))
+    return _refund_notification_state(record)
 
 def _require_admin():
     user, err = _get_current_user_entity()
@@ -1147,22 +1194,13 @@ def public_refund_request():
         db.session.add(record)
         db.session.flush()
         record_id = record.id
-        provider = payment.provider
-    # The request is durable before attempting notification. Email failure must not lose it.
-    to_email = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
-    sent = False
-    if to_email:
-        try:
-            sent, error = _send_email_if_configured(to_email,
-                f"NexTech - Yêu cầu hoàn tiền ({provider.upper()}) - Mã đơn {order_code}",
-                f"Yêu cầu #{record_id} đã được lưu.\nMã đơn: {order_code}\nHọ tên: {name}\n"
-                "Vui lòng mở hàng đợi hoàn tiền trong trang quản trị để kiểm tra chi tiết.",
-                reply_to_override=email)
-        except Exception:
-            app.logger.exception('Refund request saved but notification failed')
+    # The request remains durable if notification or its bookkeeping fails.
+    try:
+        _deliver_refund_notification(record_id)
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception('Refund request saved but notification bookkeeping failed')
     record = db.session.get(RefundRequest, record_id)
-    record.notification_sent = bool(sent) and (os.getenv('EMAIL_MODE') or '').lower() not in ('file', 'console')
-    db.session.commit()
     return jsonify({"msg": "Đã lưu yêu cầu. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi.",
                     "request": _refund_payload(record), "existing": False}), 201
 
@@ -2080,6 +2118,19 @@ def payos_webhook():
         return jsonify({"msg": "Không xử lý được thanh toán"}), 500
 
 # --- ADMIN ROUTES ---
+@app.route('/admin/refund-requests/<int:request_id>/notification', methods=['POST'])
+@jwt_required()
+def admin_retry_refund_notification(request_id):
+    admin, err = _require_admin()
+    if err:
+        return err
+    if not db.session.get(RefundRequest, request_id):
+        return jsonify({'msg': 'Yêu cầu không tồn tại'}), 404
+    state = _deliver_refund_notification(request_id)
+    message = {'sent': 'Đã gửi thông báo hỗ trợ.', 'simulated': 'Email thử đã được lưu trên máy.',
+               'failed': 'Chưa gửi được email. Hồ sơ vẫn được giữ trong hàng đợi.'}.get(state['state'], 'Chưa gửi thông báo.')
+    return jsonify({'notification': state, 'msg': message}), 200
+
 @app.route('/admin/refund-requests', methods=['GET'])
 @jwt_required()
 def admin_refund_requests():
