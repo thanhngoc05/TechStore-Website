@@ -85,6 +85,8 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', '').strip()
 if len(app.config['JWT_SECRET_KEY']) < 32:
     raise RuntimeError('Set JWT_SECRET_KEY to a private random value of at least 32 characters.')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+app.config['MAX_CONTENT_LENGTH'] = 6 * 1024 * 1024
+app.config['MAX_JSON_BODY_LENGTH'] = 1024 * 1024
 
 # --- DATABASE CONFIG (backend/config.py) ---
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.py')
@@ -338,6 +340,32 @@ app.config['REQUEST_RATE_LIMITS'] = {
     'add_review': (30, 60), 'admin_review_refund': (30, 60),
     'admin_retry_refund_notification': (5, 60),
 }
+
+
+@app.before_request
+def limit_request_body():
+    if request.is_json:
+        request.max_content_length = min(app.config['MAX_CONTENT_LENGTH'], app.config['MAX_JSON_BODY_LENGTH'])
+    if request.content_length and request.content_length > request.max_content_length:
+        return request_too_large(None)
+
+
+@app.errorhandler(413)
+def request_too_large(error):
+    return jsonify({'msg': 'Dữ liệu gửi lên vượt quá dung lượng cho phép.'}), 413
+
+
+@app.after_request
+def protect_response_metadata(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'no-referrer' if request.path.endswith('reset-password.html') else 'same-origin'
+    private = (request.method not in ('GET', 'HEAD', 'OPTIONS') or request.headers.get('Authorization')
+        or request.path.startswith(('/admin/', '/api/profile', '/api/cart', '/api/orders', '/api/refund-requests'))
+        or request.path in ('/login', '/register', '/api/forgot-password', '/api/reset-password', '/api/ready'))
+    if private:
+        response.headers['Cache-Control'] = 'no-store'
+        response.vary.add('Authorization')
+    return response
 
 
 @app.before_request

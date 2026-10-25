@@ -1061,6 +1061,22 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertIsNotNone(backend.db.session.get(backend.RequestRateBucket, 'b' * 64))
 
+    def test_oversized_json_returns_consistent_error(self):
+        with patch.dict(backend.app.config, MAX_JSON_BODY_LENGTH=128):
+            response = self.client.post('/register', json={'username': 'x' * 300})
+        self.assertEqual(response.status_code, 413)
+        self.assertIsNotNone(response.json['msg'])
+
+    def test_private_responses_are_not_cacheable(self):
+        response = self.client.get('/api/profile', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        self.assertIn('Authorization', response.headers['Vary'])
+        self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+        page = self.client.get('/pages/reset-password.html')
+        self.assertEqual(page.headers['Referrer-Policy'], 'no-referrer')
+        page.close()
+
 
 if __name__ == '__main__':
     unittest.main()
