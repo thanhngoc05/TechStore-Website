@@ -1022,6 +1022,15 @@ def _no_cache(resp):
 def health():
     return jsonify({"status": "ok"}), 200
 
+@app.route('/api/ready', methods=['GET'])
+def readiness():
+    try:
+        with db.engine.connect() as connection:
+            connection.execute(select(1))
+    except SQLAlchemyError:
+        return jsonify({'status': 'not_ready'}), 503, {'Retry-After': '5'}
+    return jsonify({'status': 'ready'}), 200
+
 @app.route('/api/debug/email-config', methods=['GET'])
 def debug_email_config():
     if not app.config.get('DEBUG') and os.getenv('ENABLE_DEBUG_ROUTES', '0').lower() not in ('1', 'true', 'yes'):

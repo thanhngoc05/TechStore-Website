@@ -1077,6 +1077,21 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(page.headers['Referrer-Policy'], 'no-referrer')
         page.close()
 
+    def test_readiness_verifies_database_connection(self):
+        response = self.client.get('/api/ready')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {'status': 'ready'})
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+
+    def test_readiness_failure_does_not_expose_database_details(self):
+        with backend.app.app_context(), patch.object(backend.db.engine, 'connect',
+                side_effect=backend.OperationalError('secret-database-uri', {}, Exception('private-password'))):
+            response = self.client.get('/api/ready')
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json, {'status': 'not_ready'})
+            self.assertNotIn('secret', response.get_data(as_text=True))
+            self.assertEqual(self.client.get('/api/health').status_code, 200)
+
 
 if __name__ == '__main__':
     unittest.main()
