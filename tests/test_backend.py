@@ -1,5 +1,6 @@
 """API regression tests with an isolated in-memory database and no external calls."""
 import os
+import re
 from io import BytesIO
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -281,7 +282,9 @@ class BackendTests(unittest.TestCase):
     def test_password_unchanged_when_email_fails(self):
         with patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
             r = self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'})
-        self.assertEqual(r.status_code, 502)
+        self.assertEqual(r.status_code, 200)
+        with backend.app.app_context():
+            self.assertEqual(backend.PasswordResetToken.query.count(), 0)
         self.login('buyer')
 
     def test_profile_rejects_locked_user(self):
@@ -705,6 +708,95 @@ class BackendTests(unittest.TestCase):
         r = self.client.put('/api/orders/' + code + '/cancel', headers=self.headers)
         self.assertEqual(r.status_code, 200, r.json)
         self.assertEqual(self.payment_state(), ('failed', 'cancelled'))
+
+    def request_reset_token(self):
+        with patch.dict(os.environ, PUBLIC_BASE_URL='https://shop.example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            response = self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'},
+                                        headers={'Host': 'untrusted.example.com'})
+            self.assertEqual(response.status_code, 200, response.json)
+            body = send.call_args.args[2]
+            self.assertIn('https://shop.example.com/pages/reset-password.html?token=', body)
+            self.assertNotIn('untrusted.example.com', body)
+            return re.search(r'token=([A-Za-z0-9_-]+)', body).group(1)
+
+    def test_reset_request_keeps_password_and_stores_only_token_hash(self):
+        token = self.request_reset_token()
+        self.login('buyer')
+        with backend.app.app_context():
+            record = backend.PasswordResetToken.query.one()
+            self.assertNotEqual(record.token_hash, token)
+            self.assertEqual(record.token_hash, backend.hashlib.sha256(token.encode()).hexdigest())
+            self.assertIsNone(record.used_at)
+
+    def test_reset_unknown_email_uses_generic_response(self):
+        with patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            known = self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'})
+            send.reset_mock()
+            unknown = self.client.post('/api/forgot-password', json={'email': 'unknown@example.com'})
+            self.assertEqual(known.json, unknown.json)
+            self.assertEqual(unknown.status_code, 200)
+            send.assert_not_called()
+
+    def test_reset_token_expires_and_can_only_be_used_once(self):
+        token = self.request_reset_token()
+        new_password = secrets.token_urlsafe(16)
+        with backend.app.app_context():
+            backend.PasswordResetToken.query.one().expires_at = backend.datetime.now() - backend.timedelta(seconds=1)
+            backend.db.session.commit()
+        body = {'token': token, 'new_password': new_password}
+        self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 400)
+        with backend.app.app_context():
+            backend.PasswordResetToken.query.one().expires_at = backend.datetime.now() + backend.timedelta(minutes=1)
+            backend.db.session.commit()
+        self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 200)
+        self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 400)
+        r = self.client.post('/login', json={'username': 'buyer', 'password': self.password, 'required_role': 'user'})
+        self.assertEqual(r.status_code, 401)
+        self.password = new_password
+        self.login('buyer')
+
+    def test_reset_request_has_per_account_cooldown(self):
+        self.request_reset_token()
+        with patch.object(backend, '_send_email_if_configured') as send:
+            r = self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'})
+            self.assertEqual(r.status_code, 200)
+            send.assert_not_called()
+        with backend.app.app_context():
+            self.assertEqual(backend.PasswordResetToken.query.count(), 1)
+
+    def test_new_reset_link_replaces_previous_link(self):
+        old_token = self.request_reset_token()
+        with backend.app.app_context():
+            backend.PasswordResetToken.query.one().created_at -= backend.timedelta(seconds=61)
+            backend.db.session.commit()
+        new_token = self.request_reset_token()
+        self.assertNotEqual(old_token, new_token)
+        r = self.client.post('/api/reset-password', json={'token': old_token, 'new_password': 'new-test-password'})
+        self.assertEqual(r.status_code, 400)
+
+    def test_reset_invalid_input_does_not_consume_token(self):
+        token = self.request_reset_token()
+        for body in ([], {}, {'token': token, 'new_password': 'short'},
+                     {'token': token, 'new_password': 'x' * 73}, {'token': 'invalid', 'new_password': 'valid-password'}):
+            self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 400)
+        with backend.app.app_context():
+            self.assertIsNone(backend.PasswordResetToken.query.one().used_at)
+
+    def test_locked_account_cannot_reset_password(self):
+        token = self.request_reset_token()
+        with backend.app.app_context():
+            backend.User.query.filter_by(username='buyer').one().is_locked = True
+            backend.db.session.commit()
+        r = self.client.post('/api/reset-password', json={'token': token, 'new_password': 'new-test-password'})
+        self.assertEqual(r.status_code, 400)
+        with patch.object(backend, '_send_email_if_configured') as send:
+            self.assertEqual(self.client.post('/api/forgot-password', json={'email': 'buyer@example.com'}).status_code, 200)
+            send.assert_not_called()
+
+    def test_reset_request_rejects_malformed_input(self):
+        for body in ([], {}, {'email': 123}, {'email': 'invalid'}, {'email': 'x' * 121}):
+            self.assertEqual(self.client.post('/api/forgot-password', json=body).status_code, 400)
 
 
 if __name__ == '__main__':
