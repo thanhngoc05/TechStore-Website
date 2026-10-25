@@ -1127,6 +1127,16 @@ class BackendTests(unittest.TestCase):
                 self.assertFalse(result.json['notification']['retry_allowed'])
                 send.assert_not_called()
 
+    def test_refund_pagination_rejects_offsets_beyond_database_range(self):
+        self.make_admin()
+        for path in ('/admin/refund-requests', '/api/refund-requests/me'):
+            for page in ('1000001', '999999999999999999999999999999', '-1', '1.5'):
+                response = self.client.get(path + '?page=' + page, headers=self.headers)
+                self.assertEqual(response.status_code, 400, response.json)
+            response = self.client.get(path + '?limit=10000', headers=self.headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json['limit'], 100)
+
 
 if __name__ == '__main__':
     unittest.main()

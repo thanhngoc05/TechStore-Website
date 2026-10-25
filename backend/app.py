@@ -419,6 +419,13 @@ def _positive_int(value):
         raise ValueError('Expected a positive integer')
     return result
 
+def _pagination_args():
+    page = _positive_int(request.args.get('page', '1'))
+    limit = min(_positive_int(request.args.get('limit', '25')), 100)
+    if page > 1000000:
+        raise ValueError('Page is outside the supported range')
+    return page, limit
+
 def _validated_account_input(data, allow_role=False):
     if not isinstance(data, dict):
         raise ValueError('Dữ liệu tài khoản không hợp lệ')
@@ -1212,8 +1219,7 @@ def my_refund_requests():
     if err:
         return err
     try:
-        page = _positive_int(request.args.get('page', '1'))
-        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+        page, limit = _pagination_args()
     except ValueError:
         return jsonify({"msg": "Phân trang không hợp lệ"}), 400
     query = RefundRequest.query.join(Order).filter(Order.user_id == user.id)
@@ -2141,8 +2147,7 @@ def admin_refund_requests():
     if status not in ('all', 'pending', 'reviewing', 'resolved', 'rejected'):
         return jsonify({'msg': 'Trạng thái không hợp lệ'}), 400
     try:
-        page = _positive_int(request.args.get('page', '1'))
-        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+        page, limit = _pagination_args()
     except ValueError:
         return jsonify({'msg': 'Phân trang không hợp lệ'}), 400
     query = RefundRequest.query
