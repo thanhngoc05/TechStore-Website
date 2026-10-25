@@ -329,9 +329,12 @@ class BackendTests(unittest.TestCase):
         r = self.client.put('/api/profile/update', headers=self.headers,
                             json={'old_password': self.password, 'new_password': new_password})
         self.assertEqual(r.status_code, 200, r.json)
-        profile = self.client.get('/api/profile', headers=self.headers).json
-        self.assertEqual(profile['phone'], '0900000000')
-        self.assertEqual(profile['address'], 'Test Address')
+        self.assertTrue(r.json['password_changed'])
+        self.assertEqual(self.client.get('/api/profile', headers=self.headers).status_code, 401)
+        with backend.app.app_context():
+            user = backend.User.query.filter_by(username='buyer').one()
+            self.assertEqual(user.phone, '0900000000')
+            self.assertEqual(user.address, 'Test Address')
         r = self.client.post('/login', json={'username': 'buyer', 'password': self.password, 'required_role': 'user'})
         self.assertEqual(r.status_code, 401)
         self.password = new_password
@@ -750,6 +753,7 @@ class BackendTests(unittest.TestCase):
             backend.PasswordResetToken.query.one().expires_at = backend.datetime.now() + backend.timedelta(minutes=1)
             backend.db.session.commit()
         self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 200)
+        self.assertEqual(self.client.get('/api/cart', headers=self.headers).status_code, 401)
         self.assertEqual(self.client.post('/api/reset-password', json=body).status_code, 400)
         r = self.client.post('/login', json={'username': 'buyer', 'password': self.password, 'required_role': 'user'})
         self.assertEqual(r.status_code, 401)
@@ -847,6 +851,12 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.Order.query.count(), 0)
             self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
+    def test_contact_only_profile_update_keeps_existing_session(self):
+        r = self.client.put('/api/profile/update', headers=self.headers, json={'phone': '0900000000'})
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.json['password_changed'])
+        self.assertEqual(self.client.get('/api/cart', headers=self.headers).status_code, 200)
 
 
 if __name__ == '__main__':

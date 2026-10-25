@@ -122,6 +122,12 @@
       const result = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        if (result.password_changed) {
+          localStorage.removeItem("token");
+          alert("Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.");
+          window.location.href = "login.html";
+          return;
+        }
         alert("Cập nhật thông tin thành công!");
 
         const oldEl = document.getElementById("old_password");

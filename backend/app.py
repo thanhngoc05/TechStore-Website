@@ -366,6 +366,19 @@ def _validated_product_input(data, partial=False):
             raise ValueError('Thông số sản phẩm phải là một đối tượng JSON')
         values['specs'] = json.dumps(specs, ensure_ascii=False)
     return values
+def _password_version(user):
+    return hashlib.sha256(user.password.encode('utf-8')).hexdigest()
+
+
+@jwt.token_in_blocklist_loader
+def _password_changed_since_login(jwt_header, jwt_payload):
+    user = User.query.filter_by(username=jwt_payload.get('sub')).first()
+    # Existing access checks supply the appropriate deleted/locked-user response.
+    if not user:
+        return False
+    return not secrets.compare_digest(str(jwt_payload.get('password_version', '')), _password_version(user))
+
+
 def _get_current_user_entity():
     current_username = get_jwt_identity()
     user = User.query.filter_by(username=current_username).first()
@@ -1029,7 +1042,8 @@ def login():
     if user and bcrypt.check_password_hash(user.password, password) and user.role == required_role:
         if user.is_locked:
             return jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403
-        token = create_access_token(identity=user.username, additional_claims={"role": user.role})
+        token = create_access_token(identity=user.username, additional_claims={
+            "role": user.role, "password_version": _password_version(user)})
         return jsonify({"access_token": token, "role": user.role, "username": user.username}), 200
     return jsonify({"msg": "Sai tài khoản hoặc mật khẩu!"}), 401
 
@@ -1175,7 +1189,7 @@ def update_profile():
         user.address = (data['address'] or '').strip()
     user.updated_at = datetime.now()
     db.session.commit()
-    return jsonify({"msg": "Cập nhật thông tin thành công!"}), 200
+    return jsonify({"msg": "Cập nhật thông tin thành công!", "password_changed": bool(new_pwd)}), 200
 
 # --- BE2: CART / ORDERS / PAYMENT ROUTES ---
 @app.route('/api/cart', methods=['GET'])
