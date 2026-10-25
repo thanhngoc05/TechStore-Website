@@ -1338,7 +1338,7 @@ def create_order():
                 db.session.rollback()
                 existing = OrderIdempotency.query.filter_by(user_id=user.id, key=idem_key).first()
                 if not existing:
-                    return jsonify({"msg": "Đơn hàng đang được tạo, vui lòng thử lại"}), 409
+                    return jsonify({"msg": "Yêu cầu này chưa thể tạo lại. Vui lòng kiểm tra danh sách đơn hàng."}), 409
                 if existing.request_hash != idem_hash:
                     return jsonify({"msg": "Idempotency-Key đã được dùng cho yêu cầu khác"}), 409
                 if existing.order_id:
@@ -1354,7 +1354,7 @@ def create_order():
                         "email_error": None,
                         "idempotent": True,
                     }), 200
-                return jsonify({"msg": "Đơn hàng đang được tạo, vui lòng chờ...", "idempotent": True}), 409
+                return jsonify({"msg": "Yêu cầu này chưa thể tạo lại. Vui lòng kiểm tra danh sách đơn hàng.", "idempotent": True}), 409
         products = Product.query.filter(Product.id.in_(list(qty_map.keys()))).with_for_update().all()
         prod_map = {p.id: p for p in products}
         for pid in qty_map.keys():
@@ -1988,6 +1988,11 @@ def delete_user(id):
         return jsonify({"msg": "Người dùng không tồn tại"}), 404
     if u.role == 'admin':
         return jsonify({"msg": "Không thể xóa tài khoản Admin"}), 400
+    if Order.query.filter_by(user_id=u.id).first():
+        return jsonify({"msg": "Tài khoản có lịch sử đơn hàng. Hãy khóa thay vì xóa để giữ dữ liệu."}), 409
+    CartItem.query.filter_by(user_id=u.id).delete()
+    PasswordResetToken.query.filter_by(user_id=u.id).delete()
+    OrderIdempotency.query.filter_by(user_id=u.id).delete()
     db.session.delete(u)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -2553,6 +2558,8 @@ def admin_delete_order(order_code):
     if current not in ('completed', 'cancelled'):
         return jsonify({"msg": "Chỉ được xóa đơn completed hoặc cancelled"}), 400
     try:
+        # Keep a retry tombstone without leaving a foreign key to the deleted order.
+        OrderIdempotency.query.filter_by(order_id=order.id).update({'order_id': None})
         Payment.query.filter_by(order_id=order.id).delete()
         OrderItem.query.filter_by(order_id=order.id).delete()
         db.session.delete(order)

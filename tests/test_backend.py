@@ -798,6 +798,56 @@ class BackendTests(unittest.TestCase):
         for body in ([], {}, {'email': 123}, {'email': 'invalid'}, {'email': 'x' * 121}):
             self.assertEqual(self.client.post('/api/forgot-password', json=body).status_code, 400)
 
+    def test_user_deletion_preserves_order_history(self):
+        self.make_admin()
+        self.register('other')
+        other_headers = self.login('other')
+        self.assertEqual(self.order(headers=other_headers).status_code, 201)
+        with backend.app.app_context():
+            other_id = backend.User.query.filter_by(username='other').one().id
+        r = self.client.delete(f'/admin/users/delete/{other_id}', headers=self.headers)
+        self.assertEqual(r.status_code, 409, r.json)
+        with backend.app.app_context():
+            self.assertIsNotNone(backend.db.session.get(backend.User, other_id))
+            self.assertEqual(backend.Order.query.count(), 1)
+
+    def test_unused_user_deletion_cleans_cart_reset_and_retry_records(self):
+        self.make_admin()
+        self.register('other')
+        other_headers = self.login('other')
+        self.client.post('/api/cart', headers=other_headers, json={'product_id': 1, 'quantity': 1})
+        with patch.object(backend, '_send_email_if_configured', return_value=(True, None)):
+            self.client.post('/api/forgot-password', json={'email': 'other@example.com'})
+        with backend.app.app_context():
+            other_id = backend.User.query.filter_by(username='other').one().id
+            backend.db.session.add(backend.OrderIdempotency(user_id=other_id, key='test-key', request_hash='test-hash'))
+            backend.db.session.commit()
+        r = self.client.delete(f'/admin/users/delete/{other_id}', headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.json)
+        with backend.app.app_context():
+            self.assertIsNone(backend.db.session.get(backend.User, other_id))
+            self.assertEqual(backend.CartItem.query.count(), 0)
+            self.assertEqual(backend.PasswordResetToken.query.count(), 0)
+            self.assertEqual(backend.OrderIdempotency.query.count(), 0)
+
+    def test_deleted_order_retains_idempotency_tombstone(self):
+        headers = dict(self.headers, **{'Idempotency-Key': 'delete-order-test'})
+        r = self.order(headers=headers)
+        self.assertEqual(r.status_code, 201, r.json)
+        code = r.json['order_code']
+        self.assertEqual(self.client.put('/api/orders/' + code + '/cancel', headers=self.headers).status_code, 200)
+        self.make_admin()
+        r = self.client.delete('/admin/orders/' + code, headers=self.headers)
+        self.assertEqual(r.status_code, 200, r.json)
+        with backend.app.app_context():
+            self.assertIsNone(backend.OrderIdempotency.query.one().order_id)
+            self.assertEqual(backend.Order.query.count(), 0)
+        replay = self.order(headers=headers)
+        self.assertEqual(replay.status_code, 409, replay.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
 
 if __name__ == '__main__':
     unittest.main()
