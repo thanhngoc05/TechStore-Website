@@ -6,6 +6,14 @@
   const labels = { pending: "Mới tiếp nhận", reviewing: "Đang kiểm tra", resolved: "Đã xử lý yêu cầu", rejected: "Không chấp nhận" };
   let page = 1, selected = null, loading = false;
 
+  function showNotification(record) {
+    const notification = record.notification || { state: record.notification_sent ? 'sent' : 'pending', retry_allowed: !record.notification_sent };
+    const states = { pending: 'Chưa gửi thông báo', sent: 'Đã gửi email hỗ trợ',
+      simulated: 'Email thử đã được lưu trên máy', failed: 'Gửi email chưa thành công' };
+    byId('refundNotification').textContent = `${states[notification.state] || notification.state} · ${notification.attempts || 0} lần xử lý`;
+    byId('refundNotifyRetry').disabled = !notification.retry_allowed;
+  }
+
   async function api(path, options = {}) {
     const token = localStorage.getItem("token");
     if (!token) throw new Error("Vui lòng đăng nhập bằng tài khoản quản trị.");
@@ -38,6 +46,7 @@
     byId("refundAudit").textContent = (record.events || []).map(event =>
       `${event.created_at} · ${event.actor}: ${labels[event.from_status]} → ${labels[event.to_status]}\n${event.staff_note || ""}`
     ).join("\n\n") || "Chưa có cập nhật.";
+    showNotification(record);
   }
 
   async function openRequest(id) {
@@ -84,6 +93,19 @@
     } catch (error) {
       message.textContent = error.message;
       byId("refundSave").disabled = false;
+    }
+  });
+  byId('refundNotifyRetry').addEventListener('click', async () => {
+    if (!selected || byId('refundNotifyRetry').disabled) return;
+    byId('refundNotifyRetry').disabled = true;
+    try {
+      const result = await api(`/admin/refund-requests/${selected.id}/notification`, { method: 'POST' });
+      selected.notification = result.notification;
+      showNotification(selected);
+      message.textContent = result.msg;
+    } catch (error) {
+      message.textContent = error.message;
+      byId('refundNotifyRetry').disabled = false;
     }
   });
   byId("refundFilter").addEventListener("change", () => { if (!loading) { page = 1; return loadQueue(); } });

@@ -7,7 +7,8 @@
 - Backend configuration, API, payment verification and automated regression checks: PR #12, merged into main; main checks passed.
 - Contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering: PR #13, merged into main.
 - Expiring password-reset links, session invalidation and deletion integrity: PR #14, merged into main.
-- Current follow-up: durable refund request queue, review/audit workflow, customer tracking and reset-token retention tooling.
+- Durable refund request queue, review/audit workflow, customer tracking and reset-token retention tooling: PR #15, merged into main.
+- Current follow-up: shared request limits, delivery retries, readiness/schema preflight and a validated WSGI entrypoint.
 
 ## Verification completed locally
 
@@ -34,6 +35,10 @@
 - Admin review uses status transitions, mandatory final feedback, optimistic revisions and persistent audit history. Review does not execute financial or inventory actions.
 - Customer tracking is available from profile, the request form and order details; all customer/staff content is rendered as text.
 - The cleanup-reset-tokens CLI previews expired-token retention cleanup unless --apply is explicitly supplied; it does not schedule a job.
+- Authentication/support limits use atomic database counters, with expiration cleanup and no trust in arbitrary forwarded IP headers.
+- Request-size bounds, private response caching rules and readiness checks have regression coverage.
+- Notification attempts distinguish actual delivery, simulation and failure; authorized retries preserve draft feedback and business state.
+- Schema preflight detects missing tables/columns with automatic initialization disabled. Waitress settings validate before starting and the entrypoint disables debug mode.
 
 ## Remaining integration work
 
@@ -41,6 +46,6 @@
 - Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
-- Review request limits across multiple workers, retention policy, uploads and deployment settings before production use.
+- Load-test shared request limits under multiple workers and verify trusted proxy, retention policy and deployment settings before production use.
 - Implement and verify provider-side refund execution/reconciliation separately. A resolved support request is not evidence of a financial refund.
-- Define retention/access policy for stored refund bank details and notifications that need retrying after a mail failure.
+- Define retention/access policy for stored refund bank details and an operational process for manual notification retries.

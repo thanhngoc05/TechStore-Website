@@ -2,6 +2,7 @@ import re
 import os
 import json
 import hashlib
+import hmac
 import importlib.util
 import uuid
 import random
@@ -42,8 +43,10 @@ from reportlab.lib.units import mm
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect, func
-from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError
+from sqlalchemy import inspect, func, select, case
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.dialects.mysql import insert as mysql_insert
+from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError, SQLAlchemyError
 
 # Load local .env (dev)
 try:
@@ -82,6 +85,8 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', '').strip()
 if len(app.config['JWT_SECRET_KEY']) < 32:
     raise RuntimeError('Set JWT_SECRET_KEY to a private random value of at least 32 characters.')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
+app.config['MAX_CONTENT_LENGTH'] = 6 * 1024 * 1024
+app.config['MAX_JSON_BODY_LENGTH'] = 1024 * 1024
 
 # --- DATABASE CONFIG (backend/config.py) ---
 config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'config.py')
@@ -175,6 +180,12 @@ class PasswordResetToken(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
     expires_at = db.Column(db.DateTime, nullable=False)
     used_at = db.Column(db.DateTime, nullable=True)
+
+class RequestRateBucket(db.Model):
+    __tablename__ = 'request_rate_buckets'
+    key_hash = db.Column(db.String(64), primary_key=True)
+    hits = db.Column(db.Integer, nullable=False, default=1)
+    expires_at = db.Column(db.DateTime, nullable=False, index=True)
 
 class Product(db.Model):
     __tablename__ = 'products'
@@ -320,7 +331,85 @@ class RefundReviewEvent(db.Model):
     actor = db.Column(db.String(80), nullable=False)
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
 
+class RefundNotificationAttempt(db.Model):
+    __tablename__ = 'refund_notification_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    request_id = db.Column(db.Integer, db.ForeignKey('refund_requests.id'), nullable=False, index=True)
+    outcome = db.Column(db.String(16), nullable=False)
+    error_code = db.Column(db.String(80), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.now)
+
 # --- HELPERS ---
+app.config['RATE_LIMIT_ENABLED'] = os.getenv('RATE_LIMIT_ENABLED', '1').lower() not in ('0', 'false', 'no')
+app.config['REQUEST_RATE_LIMITS'] = {
+    'login': (30, 60), 'register': (10, 60),
+    'forgot_password': (5, 60), 'reset_password': (10, 60),
+    'public_contact': (10, 60), 'public_refund_request': (5, 60),
+    'add_review': (30, 60), 'admin_review_refund': (30, 60),
+    'admin_retry_refund_notification': (5, 60),
+}
+
+
+@app.before_request
+def limit_request_body():
+    if request.is_json:
+        request.max_content_length = min(app.config['MAX_CONTENT_LENGTH'], app.config['MAX_JSON_BODY_LENGTH'])
+    if request.content_length and request.content_length > request.max_content_length:
+        return request_too_large(None)
+
+
+@app.errorhandler(413)
+def request_too_large(error):
+    return jsonify({'msg': 'Dữ liệu gửi lên vượt quá dung lượng cho phép.'}), 413
+
+
+@app.after_request
+def protect_response_metadata(response):
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'no-referrer' if request.path.endswith('reset-password.html') else 'same-origin'
+    private = (request.method not in ('GET', 'HEAD', 'OPTIONS') or request.headers.get('Authorization')
+        or request.path.startswith(('/admin/', '/api/profile', '/api/cart', '/api/orders', '/api/refund-requests'))
+        or request.path in ('/login', '/register', '/api/forgot-password', '/api/reset-password', '/api/ready'))
+    if private:
+        response.headers['Cache-Control'] = 'no-store'
+        response.vary.add('Authorization')
+    return response
+
+
+@app.before_request
+def enforce_request_rate_limit():
+    rule = app.config['REQUEST_RATE_LIMITS'].get(request.endpoint)
+    if not app.config['RATE_LIMIT_ENABLED'] or not rule or request.method not in ('POST', 'PUT', 'DELETE'):
+        return None
+    limit, seconds = rule
+    now = int(time.time())
+    window = now // seconds
+    identity = f'{request.endpoint}|{request.remote_addr or "unknown"}|{window}'
+    key = hmac.new(app.config['JWT_SECRET_KEY'].encode(), identity.encode(), hashlib.sha256).hexdigest()
+    table = RequestRateBucket.__table__
+    values = {'key_hash': key, 'hits': 1, 'expires_at': datetime.fromtimestamp((window + 1) * seconds) + timedelta(days=1)}
+    increment = case((table.c.hits < limit + 1, table.c.hits + 1), else_=table.c.hits)
+    try:
+        with db.engine.begin() as connection:
+            if connection.dialect.name == 'sqlite':
+                statement = sqlite_insert(table).values(**values).on_conflict_do_update(
+                    index_elements=['key_hash'], set_={'hits': increment})
+            elif connection.dialect.name == 'mysql':
+                statement = mysql_insert(table).values(**values).on_duplicate_key_update(hits=increment)
+            else:
+                return jsonify({'msg': 'Database chưa hỗ trợ giới hạn yêu cầu.'}), 503
+            connection.execute(statement)
+            hits = connection.execute(select(table.c.hits).where(table.c.key_hash == key)).scalar_one()
+    except SQLAlchemyError:
+        app.logger.exception('Request rate storage unavailable')
+        return jsonify({'msg': 'Tạm thời chưa xử lý được yêu cầu. Vui lòng thử lại.'}), 503
+    if hits > limit:
+        retry_after = (window + 1) * seconds - now
+        response = jsonify({'msg': 'Bạn thao tác quá nhanh. Vui lòng chờ rồi thử lại.', 'retry_after': retry_after})
+        response.status_code = 429
+        response.headers['Retry-After'] = str(retry_after)
+        return response
+
 
 def _positive_int(value):
     if isinstance(value, bool) or not isinstance(value, (int, str)):
@@ -329,6 +418,13 @@ def _positive_int(value):
     if result < 1:
         raise ValueError('Expected a positive integer')
     return result
+
+def _pagination_args():
+    page = _positive_int(request.args.get('page', '1'))
+    limit = min(_positive_int(request.args.get('limit', '25')), 100)
+    if page > 1000000:
+        raise ValueError('Page is outside the supported range')
+    return page, limit
 
 def _validated_account_input(data, allow_role=False):
     if not isinstance(data, dict):
@@ -435,7 +531,48 @@ def _refund_payload(record, full=False):
         events = RefundReviewEvent.query.filter_by(request_id=record.id).order_by(RefundReviewEvent.id.desc()).limit(20).all()
         result['events'] = [{'from_status': event.from_status, 'to_status': event.to_status,
             'staff_note': event.staff_note, 'actor': event.actor, 'created_at': _fmt_dt(event.created_at)} for event in events]
+        result['notification'] = _refund_notification_state(record)
     return result
+
+def _refund_notification_state(record, lock=False):
+    query = RefundNotificationAttempt.query.filter_by(request_id=record.id)
+    latest_query = query.order_by(RefundNotificationAttempt.id.desc())
+    latest = (latest_query.with_for_update() if lock else latest_query).first()
+    state = 'sent' if record.notification_sent else (latest.outcome if latest else 'pending')
+    dev_mode = (os.getenv('EMAIL_MODE') or '').strip().lower() in ('file', 'console')
+    return {'state': state, 'attempts': query.count(), 'error_code': latest.error_code if latest else None,
+            'retry_allowed': state != 'sent' and (state != 'simulated' or not dev_mode)}
+
+
+def _deliver_refund_notification(request_id):
+    # Serialize delivery attempts for one request across application workers.
+    with _session_begin():
+        record = RefundRequest.query.filter_by(id=request_id).populate_existing().with_for_update().one()
+        state = _refund_notification_state(record, lock=True)
+        if not state['retry_allowed']:
+            return state
+        receiver = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
+        sent, error = False, 'missing_receiver'
+        if receiver:
+            order = db.session.get(Order, record.order_id)
+            payment = _refundable_payment(order)
+            provider = payment.provider if payment else 'online'
+            try:
+                sent, error = _send_email_if_configured(receiver,
+                    f'NexTech - Yêu cầu hoàn tiền ({provider.upper()}) - Mã đơn {order.order_code}',
+                    f'Yêu cầu #{record.id} đã được lưu.\nMã đơn: {order.order_code}\nHọ tên: {record.name}\n'
+                    'Vui lòng mở hàng đợi hoàn tiền trong trang quản trị để kiểm tra chi tiết.',
+                    reply_to_override=record.email)
+            except Exception:
+                app.logger.exception('Refund notification delivery failed')
+                sent, error = False, 'delivery_exception'
+        dev_mode = (os.getenv('EMAIL_MODE') or '').strip().lower() in ('file', 'console')
+        outcome = ('simulated' if dev_mode else 'sent') if sent else 'failed'
+        record.notification_sent = outcome == 'sent'
+        safe_error = error if isinstance(error, str) and re.fullmatch(r'[a-z0-9_]{1,80}', error) else 'delivery_failed'
+        db.session.add(RefundNotificationAttempt(request_id=record.id, outcome=outcome,
+                                                error_code=None if sent else safe_error))
+    return _refund_notification_state(record)
 
 def _require_admin():
     user, err = _get_current_user_entity()
@@ -851,39 +988,41 @@ def seed_data():
 
     db.session.commit()
 
-with app.app_context():
-    try:
-        db.create_all()
-        ensure_schema()
-        seed_data()
-        admin_username = os.getenv('ADMIN_USERNAME', '').strip()
-        admin_email = os.getenv('ADMIN_EMAIL', '').strip()
-        admin_password = os.getenv('ADMIN_PASSWORD', '')
-        if admin_username and admin_email and admin_password and not User.query.filter_by(username=admin_username).first():
-            if len(admin_password) < 12 or not _is_valid_email(admin_email):
-                raise RuntimeError('Initial admin requires a valid email and a password of at least 12 characters.')
-            db.session.add(User(username=admin_username, password=bcrypt.generate_password_hash(admin_password).decode('utf-8'), email=admin_email, role='admin'))
-            db.session.commit()
-    except OperationalError as e:
-        uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        safe_uri = uri
-        if isinstance(uri, str) and '://' in uri and '@' in uri:
-            try:
-                prefix, rest = uri.split('://', 1)
-                creds, tail = rest.split('@', 1)
-                if ':' in creds:
-                    user_part = creds.split(':', 1)[0]
-                    safe_uri = f"{prefix}://{user_part}:***@{tail}"
-            except Exception:
-                safe_uri = '<unavailable>'
-        msg = (
-            "Không kết nối được database khi khởi động ứng dụng. "
-            f"URI đang dùng: {safe_uri}. "
-            f"Chi tiết lỗi: {str(e.orig) if getattr(e, 'orig', None) else str(e)}"
-        )
-        if os.getenv('SHOW_DB_TRACE', '0').lower() in ('1', 'true', 'yes'):
-            raise
-        raise SystemExit(msg) from None
+# Disable automatic schema/data changes for deployment preflight checks.
+if os.getenv('DB_AUTO_INITIALIZE', '1').lower() in ('1', 'true', 'yes'):
+    with app.app_context():
+        try:
+            db.create_all()
+            ensure_schema()
+            seed_data()
+            admin_username = os.getenv('ADMIN_USERNAME', '').strip()
+            admin_email = os.getenv('ADMIN_EMAIL', '').strip()
+            admin_password = os.getenv('ADMIN_PASSWORD', '')
+            if admin_username and admin_email and admin_password and not User.query.filter_by(username=admin_username).first():
+                if len(admin_password) < 12 or not _is_valid_email(admin_email):
+                    raise RuntimeError('Initial admin requires a valid email and a password of at least 12 characters.')
+                db.session.add(User(username=admin_username, password=bcrypt.generate_password_hash(admin_password).decode('utf-8'), email=admin_email, role='admin'))
+                db.session.commit()
+        except OperationalError as e:
+            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            safe_uri = uri
+            if isinstance(uri, str) and '://' in uri and '@' in uri:
+                try:
+                    prefix, rest = uri.split('://', 1)
+                    creds, tail = rest.split('@', 1)
+                    if ':' in creds:
+                        user_part = creds.split(':', 1)[0]
+                        safe_uri = f"{prefix}://{user_part}:***@{tail}"
+                except Exception:
+                    safe_uri = '<unavailable>'
+            msg = (
+                "Không kết nối được database khi khởi động ứng dụng. "
+                f"URI đang dùng: {safe_uri}. "
+                f"Chi tiết lỗi: {str(e.orig) if getattr(e, 'orig', None) else str(e)}"
+            )
+            if os.getenv('SHOW_DB_TRACE', '0').lower() in ('1', 'true', 'yes'):
+                raise
+            raise SystemExit(msg) from None
 
 # --- FRONTEND (serve UI) ---
 PAGES_DIR = os.path.join(BASE_DIR, 'pages')
@@ -940,6 +1079,15 @@ def _no_cache(resp):
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({"status": "ok"}), 200
+
+@app.route('/api/ready', methods=['GET'])
+def readiness():
+    try:
+        with db.engine.connect() as connection:
+            connection.execute(select(1))
+    except SQLAlchemyError:
+        return jsonify({'status': 'not_ready'}), 503, {'Retry-After': '5'}
+    return jsonify({'status': 'ready'}), 200
 
 @app.route('/api/debug/email-config', methods=['GET'])
 def debug_email_config():
@@ -1057,22 +1205,13 @@ def public_refund_request():
         db.session.add(record)
         db.session.flush()
         record_id = record.id
-        provider = payment.provider
-    # The request is durable before attempting notification. Email failure must not lose it.
-    to_email = (os.getenv('CONTACT_TO_EMAIL') or os.getenv('SMTP_USER') or os.getenv('SMTP_FROM') or '').strip()
-    sent = False
-    if to_email:
-        try:
-            sent, error = _send_email_if_configured(to_email,
-                f"NexTech - Yêu cầu hoàn tiền ({provider.upper()}) - Mã đơn {order_code}",
-                f"Yêu cầu #{record_id} đã được lưu.\nMã đơn: {order_code}\nHọ tên: {name}\n"
-                "Vui lòng mở hàng đợi hoàn tiền trong trang quản trị để kiểm tra chi tiết.",
-                reply_to_override=email)
-        except Exception:
-            app.logger.exception('Refund request saved but notification failed')
+    # The request remains durable if notification or its bookkeeping fails.
+    try:
+        _deliver_refund_notification(record_id)
+    except SQLAlchemyError:
+        db.session.rollback()
+        app.logger.exception('Refund request saved but notification bookkeeping failed')
     record = db.session.get(RefundRequest, record_id)
-    record.notification_sent = bool(sent) and (os.getenv('EMAIL_MODE') or '').lower() not in ('file', 'console')
-    db.session.commit()
     return jsonify({"msg": "Đã lưu yêu cầu. Bộ phận hỗ trợ sẽ kiểm tra và phản hồi.",
                     "request": _refund_payload(record), "existing": False}), 201
 
@@ -1084,8 +1223,7 @@ def my_refund_requests():
     if err:
         return err
     try:
-        page = _positive_int(request.args.get('page', '1'))
-        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+        page, limit = _pagination_args()
     except ValueError:
         return jsonify({"msg": "Phân trang không hợp lệ"}), 400
     query = RefundRequest.query.join(Order).filter(Order.user_id == user.id)
@@ -1990,6 +2128,19 @@ def payos_webhook():
         return jsonify({"msg": "Không xử lý được thanh toán"}), 500
 
 # --- ADMIN ROUTES ---
+@app.route('/admin/refund-requests/<int:request_id>/notification', methods=['POST'])
+@jwt_required()
+def admin_retry_refund_notification(request_id):
+    admin, err = _require_admin()
+    if err:
+        return err
+    if not db.session.get(RefundRequest, request_id):
+        return jsonify({'msg': 'Yêu cầu không tồn tại'}), 404
+    state = _deliver_refund_notification(request_id)
+    message = {'sent': 'Đã gửi thông báo hỗ trợ.', 'simulated': 'Email thử đã được lưu trên máy.',
+               'failed': 'Chưa gửi được email. Hồ sơ vẫn được giữ trong hàng đợi.'}.get(state['state'], 'Chưa gửi thông báo.')
+    return jsonify({'notification': state, 'msg': message}), 200
+
 @app.route('/admin/refund-requests', methods=['GET'])
 @jwt_required()
 def admin_refund_requests():
@@ -2000,8 +2151,7 @@ def admin_refund_requests():
     if status not in ('all', 'pending', 'reviewing', 'resolved', 'rejected'):
         return jsonify({'msg': 'Trạng thái không hợp lệ'}), 400
     try:
-        page = _positive_int(request.args.get('page', '1'))
-        limit = min(_positive_int(request.args.get('limit', '25')), 100)
+        page, limit = _pagination_args()
     except ValueError:
         return jsonify({'msg': 'Phân trang không hợp lệ'}), 400
     query = RefundRequest.query
@@ -3075,6 +3225,39 @@ def cleanup_reset_tokens(retention_days, apply_changes):
         deleted = query.delete(synchronize_session=False)
         db.session.commit()
     click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
+@app.cli.command('cleanup-rate-buckets')
+@click.option('--apply', 'apply_changes', is_flag=True, help='Delete expired counters; otherwise preview only.')
+def cleanup_rate_buckets(apply_changes):
+    """Clean old request counters without removing active rate windows."""
+    query = RequestRateBucket.query.filter(RequestRateBucket.expires_at < datetime.now())
+    matched = query.count()
+    deleted = query.delete(synchronize_session=False) if apply_changes else 0
+    if apply_changes:
+        db.session.commit()
+    click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
+@app.cli.command('schema-check')
+def schema_check():
+    """Report missing tables/columns without running DDL (use DB_AUTO_INITIALIZE=0)."""
+    missing = {}
+    try:
+        inspector = inspect(db.engine)
+        existing = set(inspector.get_table_names())
+        for name, table in db.metadata.tables.items():
+            if name not in existing:
+                missing[name] = {'table_missing': True}
+                continue
+            columns = {column['name'] for column in inspector.get_columns(name)}
+            absent = sorted(set(table.columns.keys()) - columns)
+            if absent:
+                missing[name] = {'missing_columns': absent}
+    except SQLAlchemyError:
+        click.echo(json.dumps({'ok': False, 'error': 'database_unavailable'}))
+        raise click.exceptions.Exit(1)
+    click.echo(json.dumps({'ok': not missing, 'missing': missing}))
+    if missing:
+        raise click.exceptions.Exit(1)
 
 
 if __name__ == '__main__':

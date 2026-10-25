@@ -36,6 +36,8 @@ Lệnh này khởi động API và phục vụ giao diện tại [localhost:5001
 
 Lần chạy đầu tạo bảng và dữ liệu minh họa. Máy chủ Flask tích hợp dành cho phát triển; debug mặc định tắt. Đặt `FLASK_DEBUG=1` chỉ khi cần gỡ lỗi cục bộ.
 
+Để chạy qua Waitress, kiểm tra schema, readiness, giới hạn thao tác hoặc gửi lại thông báo hỗ trợ, xem [hướng dẫn vận hành](docs/OPERATIONS.md). Các thao tác ghi vượt giới hạn trả 429 và thời gian chờ trước khi thử lại.
+
 ## Email và thanh toán
 
 - `EMAIL_MODE=file` lưu email thử trong `instance/emails/`, không gửi ra ngoài. Để gửi thật, điền `SMTP_*`, chọn `EMAIL_MODE=smtp` và cấu hình `CONTACT_TO_EMAIL` khi cần nhận liên hệ.

@@ -1015,6 +1015,153 @@ class BackendTests(unittest.TestCase):
         result = backend.app.test_cli_runner().invoke(args=['cleanup-reset-tokens', '--retention-days', '0', '--apply'])
         self.assertNotEqual(result.exit_code, 0)
 
+    def test_auth_rate_limit_persists_and_expires_by_window(self):
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(2, 60)), \
+                patch.object(backend.time, 'time', return_value=120):
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+            response = self.client.post('/login', json={})
+            self.assertEqual(response.status_code, 429)
+            self.assertEqual(response.headers['Retry-After'], '60')
+            self.assertEqual(backend.app.test_client().post('/login', json={}).status_code, 429)
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(2, 60)), \
+                patch.object(backend.time, 'time', return_value=180):
+            self.assertEqual(self.client.post('/login', json={}).status_code, 400)
+
+    def test_auth_rate_limit_does_not_trust_forwarded_ip(self):
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], login=(1, 60)), \
+                patch.object(backend.time, 'time', return_value=120):
+            self.assertEqual(self.client.post('/login', json={}, headers={'X-Forwarded-For': '1.1.1.1'}).status_code, 400)
+            self.assertEqual(self.client.post('/login', json={}, headers={'X-Forwarded-For': '2.2.2.2'}).status_code, 429)
+            self.assertEqual(self.client.post('/login', json={}, environ_overrides={'REMOTE_ADDR': '127.0.0.2'}).status_code, 400)
+        with backend.app.app_context():
+            self.assertTrue(all(len(row.key_hash) == 64 for row in backend.RequestRateBucket.query.all()))
+
+    def test_support_rate_limit_blocks_duplicate_email_work(self):
+        payload = {'name': 'Buyer', 'email': 'buyer@example.com', 'message': 'Test'}
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], public_contact=(1, 60)), \
+                patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 200)
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 429)
+            self.assertEqual(send.call_count, 1)
+
+    def test_rate_counter_cleanup_keeps_active_buckets(self):
+        with backend.app.app_context():
+            now = backend.datetime.now()
+            backend.db.session.add(backend.RequestRateBucket(key_hash='a' * 64, hits=1, expires_at=now - backend.timedelta(days=1)))
+            backend.db.session.add(backend.RequestRateBucket(key_hash='b' * 64, hits=1, expires_at=now + backend.timedelta(days=1)))
+            backend.db.session.commit()
+        preview = backend.app.test_cli_runner().invoke(args=['cleanup-rate-buckets'])
+        self.assertEqual(preview.exit_code, 0, preview.output)
+        self.assertEqual(backend.json.loads(preview.output)['deleted'], 0)
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-rate-buckets', '--apply'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output)['deleted'], 1)
+        with backend.app.app_context():
+            self.assertIsNotNone(backend.db.session.get(backend.RequestRateBucket, 'b' * 64))
+
+    def test_oversized_json_returns_consistent_error(self):
+        with patch.dict(backend.app.config, MAX_JSON_BODY_LENGTH=128):
+            response = self.client.post('/register', json={'username': 'x' * 300})
+        self.assertEqual(response.status_code, 413)
+        self.assertIsNotNone(response.json['msg'])
+
+    def test_private_responses_are_not_cacheable(self):
+        response = self.client.get('/api/profile', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+        self.assertIn('Authorization', response.headers['Vary'])
+        self.assertEqual(response.headers['X-Content-Type-Options'], 'nosniff')
+        page = self.client.get('/pages/reset-password.html')
+        self.assertEqual(page.headers['Referrer-Policy'], 'no-referrer')
+        page.close()
+
+    def test_readiness_verifies_database_connection(self):
+        response = self.client.get('/api/ready')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, {'status': 'ready'})
+        self.assertEqual(response.headers['Cache-Control'], 'no-store')
+
+    def test_readiness_failure_does_not_expose_database_details(self):
+        with backend.app.app_context(), patch.object(backend.db.engine, 'connect',
+                side_effect=backend.OperationalError('secret-database-uri', {}, Exception('private-password'))):
+            response = self.client.get('/api/ready')
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.json, {'status': 'not_ready'})
+            self.assertNotIn('secret', response.get_data(as_text=True))
+            self.assertEqual(self.client.get('/api/health').status_code, 200)
+
+    def test_failed_refund_notification_can_be_retried_by_admin(self):
+        code, request_id = self.create_refund_request()
+        with backend.app.app_context():
+            record = backend.db.session.get(backend.RefundRequest, request_id)
+            record.notification_sent = False
+            attempt = backend.RefundNotificationAttempt.query.filter_by(request_id=request_id).one()
+            attempt.outcome, attempt.error_code = 'failed', 'initial_failure'
+            backend.db.session.commit()
+        url = f'/admin/refund-requests/{request_id}/notification'
+        self.assertEqual(self.client.post(url, headers=self.headers).status_code, 403)
+        self.make_admin()
+        with patch.dict(os.environ, EMAIL_MODE='smtp', CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(False, 'test_failure')):
+            response = self.client.post(url, headers=self.headers)
+            self.assertEqual(response.json['notification']['state'], 'failed')
+        with patch.dict(os.environ, EMAIL_MODE='smtp', CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            response = self.client.post(url, headers=self.headers)
+            self.assertEqual(response.json['notification']['state'], 'sent')
+            self.client.post(url, headers=self.headers)
+            self.assertEqual(send.call_count, 1)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.RefundNotificationAttempt.query.count(), 3)
+
+    def test_simulated_refund_notification_is_not_reported_as_real_delivery(self):
+        with patch.dict(os.environ, EMAIL_MODE='file'):
+            code, request_id = self.create_refund_request()
+            self.make_admin()
+            with patch.object(backend, '_send_email_if_configured') as send:
+                result = self.client.post(f'/admin/refund-requests/{request_id}/notification', headers=self.headers)
+                self.assertEqual(result.json['notification']['state'], 'simulated')
+                self.assertFalse(result.json['notification']['retry_allowed'])
+                send.assert_not_called()
+
+    def test_refund_pagination_rejects_offsets_beyond_database_range(self):
+        self.make_admin()
+        for path in ('/admin/refund-requests', '/api/refund-requests/me'):
+            for page in ('1000001', '999999999999999999999999999999', '-1', '1.5'):
+                response = self.client.get(path + '?page=' + page, headers=self.headers)
+                self.assertEqual(response.status_code, 400, response.json)
+            response = self.client.get(path + '?limit=10000', headers=self.headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json['limit'], 100)
+
+    def test_schema_check_accepts_current_database(self):
+        result = backend.app.test_cli_runner().invoke(args=['schema-check'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output), {'ok': True, 'missing': {}})
+
+    def test_schema_check_reports_old_schema_without_changing_it(self):
+        with backend.app.app_context():
+            backend.db.drop_all()
+            with backend.db.engine.begin() as connection:
+                connection.exec_driver_sql('CREATE TABLE users (id INTEGER PRIMARY KEY)')
+        result = backend.app.test_cli_runner().invoke(args=['schema-check'])
+        self.assertEqual(result.exit_code, 1, result.output)
+        data = backend.json.loads(result.output)
+        self.assertIn('username', data['missing']['users']['missing_columns'])
+        self.assertTrue(data['missing']['orders']['table_missing'])
+        with backend.app.app_context():
+            self.assertEqual([item['name'] for item in backend.inspect(backend.db.engine).get_columns('users')], ['id'])
+
+    def test_deployment_preflight_can_skip_database_initialization(self):
+        env = dict(os.environ, DB_AUTO_INITIALIZE='0', USE_SQLITE='1', SQLALCHEMY_DATABASE_URI='sqlite:///:memory:')
+        code = 'import app; ctx=app.app.app_context(); ctx.push(); assert app.inspect(app.db.engine).get_table_names() == []; ctx.pop()'
+        result = subprocess.run([sys.executable, '-c', code], cwd=ROOT / 'backend', env=env,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()
