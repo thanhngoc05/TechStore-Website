@@ -1137,6 +1137,31 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response.json['limit'], 100)
 
+    def test_schema_check_accepts_current_database(self):
+        result = backend.app.test_cli_runner().invoke(args=['schema-check'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output), {'ok': True, 'missing': {}})
+
+    def test_schema_check_reports_old_schema_without_changing_it(self):
+        with backend.app.app_context():
+            backend.db.drop_all()
+            with backend.db.engine.begin() as connection:
+                connection.exec_driver_sql('CREATE TABLE users (id INTEGER PRIMARY KEY)')
+        result = backend.app.test_cli_runner().invoke(args=['schema-check'])
+        self.assertEqual(result.exit_code, 1, result.output)
+        data = backend.json.loads(result.output)
+        self.assertIn('username', data['missing']['users']['missing_columns'])
+        self.assertTrue(data['missing']['orders']['table_missing'])
+        with backend.app.app_context():
+            self.assertEqual([item['name'] for item in backend.inspect(backend.db.engine).get_columns('users')], ['id'])
+
+    def test_deployment_preflight_can_skip_database_initialization(self):
+        env = dict(os.environ, DB_AUTO_INITIALIZE='0', USE_SQLITE='1', SQLALCHEMY_DATABASE_URI='sqlite:///:memory:')
+        code = 'import app; ctx=app.app.app_context(); ctx.push(); assert app.inspect(app.db.engine).get_table_names() == []; ctx.pop()'
+        result = subprocess.run([sys.executable, '-c', code], cwd=ROOT / 'backend', env=env,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -986,39 +986,41 @@ def seed_data():
 
     db.session.commit()
 
-with app.app_context():
-    try:
-        db.create_all()
-        ensure_schema()
-        seed_data()
-        admin_username = os.getenv('ADMIN_USERNAME', '').strip()
-        admin_email = os.getenv('ADMIN_EMAIL', '').strip()
-        admin_password = os.getenv('ADMIN_PASSWORD', '')
-        if admin_username and admin_email and admin_password and not User.query.filter_by(username=admin_username).first():
-            if len(admin_password) < 12 or not _is_valid_email(admin_email):
-                raise RuntimeError('Initial admin requires a valid email and a password of at least 12 characters.')
-            db.session.add(User(username=admin_username, password=bcrypt.generate_password_hash(admin_password).decode('utf-8'), email=admin_email, role='admin'))
-            db.session.commit()
-    except OperationalError as e:
-        uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
-        safe_uri = uri
-        if isinstance(uri, str) and '://' in uri and '@' in uri:
-            try:
-                prefix, rest = uri.split('://', 1)
-                creds, tail = rest.split('@', 1)
-                if ':' in creds:
-                    user_part = creds.split(':', 1)[0]
-                    safe_uri = f"{prefix}://{user_part}:***@{tail}"
-            except Exception:
-                safe_uri = '<unavailable>'
-        msg = (
-            "Không kết nối được database khi khởi động ứng dụng. "
-            f"URI đang dùng: {safe_uri}. "
-            f"Chi tiết lỗi: {str(e.orig) if getattr(e, 'orig', None) else str(e)}"
-        )
-        if os.getenv('SHOW_DB_TRACE', '0').lower() in ('1', 'true', 'yes'):
-            raise
-        raise SystemExit(msg) from None
+# Disable automatic schema/data changes for deployment preflight checks.
+if os.getenv('DB_AUTO_INITIALIZE', '1').lower() in ('1', 'true', 'yes'):
+    with app.app_context():
+        try:
+            db.create_all()
+            ensure_schema()
+            seed_data()
+            admin_username = os.getenv('ADMIN_USERNAME', '').strip()
+            admin_email = os.getenv('ADMIN_EMAIL', '').strip()
+            admin_password = os.getenv('ADMIN_PASSWORD', '')
+            if admin_username and admin_email and admin_password and not User.query.filter_by(username=admin_username).first():
+                if len(admin_password) < 12 or not _is_valid_email(admin_email):
+                    raise RuntimeError('Initial admin requires a valid email and a password of at least 12 characters.')
+                db.session.add(User(username=admin_username, password=bcrypt.generate_password_hash(admin_password).decode('utf-8'), email=admin_email, role='admin'))
+                db.session.commit()
+        except OperationalError as e:
+            uri = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+            safe_uri = uri
+            if isinstance(uri, str) and '://' in uri and '@' in uri:
+                try:
+                    prefix, rest = uri.split('://', 1)
+                    creds, tail = rest.split('@', 1)
+                    if ':' in creds:
+                        user_part = creds.split(':', 1)[0]
+                        safe_uri = f"{prefix}://{user_part}:***@{tail}"
+                except Exception:
+                    safe_uri = '<unavailable>'
+            msg = (
+                "Không kết nối được database khi khởi động ứng dụng. "
+                f"URI đang dùng: {safe_uri}. "
+                f"Chi tiết lỗi: {str(e.orig) if getattr(e, 'orig', None) else str(e)}"
+            )
+            if os.getenv('SHOW_DB_TRACE', '0').lower() in ('1', 'true', 'yes'):
+                raise
+            raise SystemExit(msg) from None
 
 # --- FRONTEND (serve UI) ---
 PAGES_DIR = os.path.join(BASE_DIR, 'pages')
@@ -3232,6 +3234,28 @@ def cleanup_rate_buckets(apply_changes):
     if apply_changes:
         db.session.commit()
     click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
+@app.cli.command('schema-check')
+def schema_check():
+    """Report missing tables/columns without running DDL (use DB_AUTO_INITIALIZE=0)."""
+    missing = {}
+    try:
+        inspector = inspect(db.engine)
+        existing = set(inspector.get_table_names())
+        for name, table in db.metadata.tables.items():
+            if name not in existing:
+                missing[name] = {'table_missing': True}
+                continue
+            columns = {column['name'] for column in inspector.get_columns(name)}
+            absent = sorted(set(table.columns.keys()) - columns)
+            if absent:
+                missing[name] = {'missing_columns': absent}
+    except SQLAlchemyError:
+        click.echo(json.dumps({'ok': False, 'error': 'database_unavailable'}))
+        raise click.exceptions.Exit(1)
+    click.echo(json.dumps({'ok': not missing, 'missing': missing}))
+    if missing:
+        raise click.exceptions.Exit(1)
 
 
 if __name__ == '__main__':
