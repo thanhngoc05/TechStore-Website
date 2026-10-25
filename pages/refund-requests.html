@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Yêu cầu hoàn tiền của tôi - NexTech</title>
+    <link rel="stylesheet" href="../assets/CSS/refund-tracking.css" />
+  </head>
+  <body>
+    <main class="refund-shell">
+      <header><a href="Tra_cuu.html">← Đơn hàng của tôi</a><h1>Yêu cầu hoàn tiền của tôi</h1></header>
+      <p class="notice">Đây là tiến độ xử lý yêu cầu hỗ trợ. Trạng thái “Đã xử lý yêu cầu” không xác nhận tiền đã được hoàn; hãy kiểm tra phản hồi và đối chiếu với bộ phận hỗ trợ.</p>
+      <button id="refundCustomerReload" type="button">Tải lại trạng thái</button>
+      <p id="refundCustomerMessage" role="status" aria-live="polite"></p>
+      <section id="refundCustomerList" aria-label="Danh sách yêu cầu của tôi"></section>
+      <nav class="refund-toolbar" aria-label="Phân trang"><button id="refundCustomerPrev" type="button">Trước</button><span id="refundCustomerPage"></span><button id="refundCustomerNext" type="button">Sau</button></nav>
+      <p><a href="login.html">Đăng nhập</a> · <a href="index.html">Trang chủ</a></p>
+    </main>
+    <script src="../scripts/api-config.js"></script>
+    <script src="../scripts/customer-refunds.js"></script>
+  </body>
+</html>

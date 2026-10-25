@@ -976,6 +976,13 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.RefundRequest.query.count(), 1)
 
+    def test_order_detail_includes_masked_refund_tracking(self):
+        code, request_id = self.create_refund_request()
+        response = self.client.get('/api/orders/' + code, headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json['refund_request']['id'], request_id)
+        self.assertNotIn('account_number', response.json['refund_request'])
+
 
 if __name__ == '__main__':
     unittest.main()

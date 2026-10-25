@@ -1605,6 +1605,7 @@ def get_order_detail(order_code):
     if payment_method in ('bank', 'napas', 'atm'):
         payment_method = 'payos'
     derived_initial = _initial_payment_from_order(payment_method) if not payments else None
+    refund_record = RefundRequest.query.filter_by(order_id=order.id).first()
     return jsonify({
         "order_code": order.order_code,
         "status": order.status,
@@ -1630,6 +1631,7 @@ def get_order_detail(order_code):
         "payment_latest": _payment_payload(last_payment),
         "payments_count": len(payments),
         "requires_refund": _refundable_payment(order) is not None,
+        "refund_request": _refund_payload(refund_record) if refund_record else None,
     }), 200
 
 @app.route('/api/orders/<string:order_code>/cancel', methods=['PUT'])
