@@ -334,6 +334,9 @@ app.config['RATE_LIMIT_ENABLED'] = os.getenv('RATE_LIMIT_ENABLED', '1').lower() 
 app.config['REQUEST_RATE_LIMITS'] = {
     'login': (30, 60), 'register': (10, 60),
     'forgot_password': (5, 60), 'reset_password': (10, 60),
+    'public_contact': (10, 60), 'public_refund_request': (5, 60),
+    'add_review': (30, 60), 'admin_review_refund': (30, 60),
+    'admin_retry_refund_notification': (5, 60),
 }
 
 
@@ -3123,6 +3126,17 @@ def cleanup_reset_tokens(retention_days, apply_changes):
     deleted = 0
     if apply_changes:
         deleted = query.delete(synchronize_session=False)
+        db.session.commit()
+    click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
+
+@app.cli.command('cleanup-rate-buckets')
+@click.option('--apply', 'apply_changes', is_flag=True, help='Delete expired counters; otherwise preview only.')
+def cleanup_rate_buckets(apply_changes):
+    """Clean old request counters without removing active rate windows."""
+    query = RequestRateBucket.query.filter(RequestRateBucket.expires_at < datetime.now())
+    matched = query.count()
+    deleted = query.delete(synchronize_session=False) if apply_changes else 0
+    if apply_changes:
         db.session.commit()
     click.echo(json.dumps({'matched': matched, 'deleted': deleted, 'dry_run': not apply_changes}))
 

@@ -1037,6 +1037,30 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertTrue(all(len(row.key_hash) == 64 for row in backend.RequestRateBucket.query.all()))
 
+    def test_support_rate_limit_blocks_duplicate_email_work(self):
+        payload = {'name': 'Buyer', 'email': 'buyer@example.com', 'message': 'Test'}
+        with patch.dict(backend.app.config['REQUEST_RATE_LIMITS'], public_contact=(1, 60)), \
+                patch.dict(os.environ, CONTACT_TO_EMAIL='support@example.com'), \
+                patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 200)
+            self.assertEqual(self.client.post('/api/public/contact', json=payload).status_code, 429)
+            self.assertEqual(send.call_count, 1)
+
+    def test_rate_counter_cleanup_keeps_active_buckets(self):
+        with backend.app.app_context():
+            now = backend.datetime.now()
+            backend.db.session.add(backend.RequestRateBucket(key_hash='a' * 64, hits=1, expires_at=now - backend.timedelta(days=1)))
+            backend.db.session.add(backend.RequestRateBucket(key_hash='b' * 64, hits=1, expires_at=now + backend.timedelta(days=1)))
+            backend.db.session.commit()
+        preview = backend.app.test_cli_runner().invoke(args=['cleanup-rate-buckets'])
+        self.assertEqual(preview.exit_code, 0, preview.output)
+        self.assertEqual(backend.json.loads(preview.output)['deleted'], 0)
+        result = backend.app.test_cli_runner().invoke(args=['cleanup-rate-buckets', '--apply'])
+        self.assertEqual(result.exit_code, 0, result.output)
+        self.assertEqual(backend.json.loads(result.output)['deleted'], 1)
+        with backend.app.app_context():
+            self.assertIsNotNone(backend.db.session.get(backend.RequestRateBucket, 'b' * 64))
+
 
 if __name__ == '__main__':
     unittest.main()
