@@ -43,7 +43,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect, func, select, case
+from sqlalchemy import inspect, func, select, case, and_, or_
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError, SQLAlchemyError
@@ -346,7 +346,7 @@ app.config['REQUEST_RATE_LIMITS'] = {
     'forgot_password': (5, 60), 'reset_password': (10, 60),
     'public_contact': (10, 60), 'public_refund_request': (5, 60),
     'add_review': (30, 60), 'admin_review_refund': (30, 60),
-    'admin_retry_refund_notification': (5, 60),
+    'admin_retry_refund_notification': (5, 60), 'public_warranty_lookup': (15, 60),
 }
 
 
@@ -379,7 +379,8 @@ def protect_response_metadata(response):
 @app.before_request
 def enforce_request_rate_limit():
     rule = app.config['REQUEST_RATE_LIMITS'].get(request.endpoint)
-    if not app.config['RATE_LIMIT_ENABLED'] or not rule or request.method not in ('POST', 'PUT', 'DELETE'):
+    limited_method = request.method in ('POST', 'PUT', 'DELETE') or (request.endpoint == 'public_warranty_lookup' and request.method == 'GET')
+    if not app.config['RATE_LIMIT_ENABLED'] or not rule or not limited_method:
         return None
     limit, seconds = rule
     now = int(time.time())
@@ -415,7 +416,7 @@ def _positive_int(value):
     if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise ValueError('Expected a positive integer')
     result = int(value)
-    if result < 1:
+    if not 1 <= result <= 2147483647:
         raise ValueError('Expected a positive integer')
     return result
 
@@ -467,6 +468,35 @@ def _validated_text_fields(data, fields, required=(), single_line=()):
             raise ValueError('Thiếu thông tin bắt buộc hoặc có ký tự xuống dòng không hợp lệ')
         result[name] = value
     return result
+
+def _validated_image_url(value, maximum=600, required=False):
+    if not isinstance(value, str) or len(value) > maximum:
+        raise ValueError('Đường dẫn ảnh không hợp lệ hoặc quá dài')
+    value = value.strip()
+    if not value and not required:
+        return ''
+    if not value or any(ord(character) < 32 or character in '\\<>"\'' for character in value):
+        raise ValueError('Đường dẫn ảnh không hợp lệ')
+    try:
+        parsed = urlsplit(value)
+    except ValueError as error:
+        raise ValueError('Đường dẫn ảnh không hợp lệ') from error
+    if parsed.scheme:
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.username or parsed.password:
+            raise ValueError('Chỉ nhận đường dẫn ảnh HTTP/HTTPS hoặc tệp trong website')
+    elif parsed.netloc or value.startswith('//'):
+        raise ValueError('Đường dẫn ảnh cần chỉ rõ giao thức')
+    return value
+
+
+def _validated_banner_input(data, partial=False):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu banner không hợp lệ')
+    fields = {key: limit for key, limit in {'img': 600, 'position': 50}.items() if not partial or key in data}
+    values = _validated_text_fields(data, fields, single_line=tuple(fields))
+    if 'img' in values:
+        values['img'] = _validated_image_url(values['img'], required=True)
+    return values
 
 
 def _validated_product_input(data, partial=False):
@@ -613,7 +643,7 @@ def _parse_datetime(value: str):
     s = (value or '').strip()
     if not s:
         return None
-    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M'):
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M'):
         try:
             return datetime.strptime(s, fmt)
         except Exception:
@@ -630,6 +660,80 @@ def _parse_date(value: str):
         except Exception:
             continue
     return None
+
+def _validated_news_input(data, existing=None):
+    fields = {'title': 250, 'slug': 260, 'summary': 2000, 'content': 100000, 'thumbnail': 600, 'banner': 600}
+    if existing:
+        if not isinstance(data, dict):
+            raise ValueError('Dữ liệu bài viết không hợp lệ')
+        fields = {name: limit for name, limit in fields.items() if name in data}
+    values = _validated_text_fields(data, fields, required=tuple(name for name in ('title', 'content') if name in fields),
+                                    single_line=tuple(name for name in ('title', 'slug') if name in fields))
+    if 'slug' in values or not existing:
+        values['slug'] = _slugify(values.get('slug') or values.get('title') or existing.title)[:260]
+    for name in ('thumbnail', 'banner'):
+        if name in values:
+            values[name] = _validated_image_url(values[name]) or None
+    for name in ('summary',):
+        if name in values:
+            values[name] = values[name] or None
+    status = data.get('status', existing.status if existing else 'draft')
+    if status not in ('draft', 'published', 'scheduled', 'hidden'):
+        raise ValueError('Trạng thái bài viết không hợp lệ')
+    scheduled = existing.scheduled_at if existing else None
+    if 'scheduled_at' in data:
+        raw = data['scheduled_at']
+        if not isinstance(raw, str):
+            raise ValueError('Ngày hẹn đăng không hợp lệ')
+        scheduled = _parse_datetime(raw)
+        if raw.strip() and not scheduled:
+            raise ValueError('Ngày hẹn đăng không hợp lệ')
+    if status == 'scheduled' and not scheduled:
+        raise ValueError('Bài hẹn đăng phải có ngày giờ hợp lệ')
+    values.update(status=status, scheduled_at=scheduled)
+    return values
+
+def _decoded_warranty_history(raw):
+    try:
+        value = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
+    return [item for item in value[:100] if isinstance(item, str)] if isinstance(value, list) else []
+
+
+def _validated_warranty_input(data, existing=None):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu bảo hành không hợp lệ')
+    fields = {'warranty_code': 80, 'product_name': 250, 'serial_imei': 120, 'customer_name': 120, 'phone': 25}
+    if existing:
+        fields = {name: limit for name, limit in fields.items() if name in data}
+    required = tuple(name for name in ('warranty_code', 'product_name', 'phone') if name in fields)
+    values = _validated_text_fields(data, fields, required=required, single_line=tuple(fields))
+    if 'phone' in values and not re.fullmatch(r'\+?[0-9][0-9 .()-]{5,24}', values['phone']):
+        raise ValueError('Số điện thoại bảo hành không hợp lệ')
+    status = data.get('status', existing.status if existing else 'active')
+    if status not in ('active', 'processing', 'expired'):
+        raise ValueError('Trạng thái bảo hành không hợp lệ')
+    values['status'] = status
+    for field in ('activated_at', 'expired_at'):
+        if field in data or not existing:
+            raw = data.get(field, '')
+            if not isinstance(raw, str):
+                raise ValueError('Ngày bảo hành không hợp lệ')
+            value = _parse_date(raw)
+            if raw.strip() and not value:
+                raise ValueError('Ngày bảo hành không hợp lệ')
+            values[field] = value
+    activated = values.get('activated_at', existing.activated_at if existing else None)
+    expired = values.get('expired_at', existing.expired_at if existing else None)
+    if activated and expired and expired < activated:
+        raise ValueError('Hạn bảo hành không thể trước ngày kích hoạt')
+    if 'history' in data or not existing:
+        history = data.get('history', [])
+        if not isinstance(history, list) or len(history) > 100 or any(not isinstance(item, str) or len(item) > 2000 for item in history):
+            raise ValueError('Lịch sử bảo hành phải là danh sách nội dung hợp lệ')
+        values['history'] = json.dumps([item.strip() for item in history if item.strip()], ensure_ascii=False)
+    return values
 
 def _fmt_dt(v):
     return v.strftime('%d/%m/%Y %H:%M:%S') if v else None
@@ -1505,10 +1609,10 @@ def create_order():
     clear_cart_item_ids = data.get('clear_cart_item_ids')
     clear_cart_ids = None
     if clear_cart_item_ids is not None:
-        if not isinstance(clear_cart_item_ids, list):
+        if not isinstance(clear_cart_item_ids, list) or len(clear_cart_item_ids) > 100:
             return jsonify({"msg": "clear_cart_item_ids không hợp lệ"}), 400
         try:
-            clear_cart_ids = sorted({int(x) for x in clear_cart_item_ids if int(x) > 0})
+            clear_cart_ids = sorted({_positive_int(x) for x in clear_cart_item_ids})
         except Exception:
             return jsonify({"msg": "clear_cart_item_ids không hợp lệ"}), 400
     if not items:
@@ -1517,7 +1621,7 @@ def create_order():
         if not cart_items:
             return jsonify({"msg": "Giỏ hàng trống"}), 400
         items = [{"product_id": ci.product_id, "quantity": ci.quantity} for ci in cart_items]
-    if not isinstance(items, list) or len(items) == 0:
+    if not isinstance(items, list) or not 1 <= len(items) <= 100:
         return jsonify({"msg": "items không hợp lệ"}), 400
     qty_map = {}
     try:
@@ -1526,22 +1630,32 @@ def create_order():
             qty = _positive_int(it.get('quantity', 0))
             if pid <= 0 or qty <= 0:
                 return jsonify({"msg": "product_id/quantity không hợp lệ"}), 400
-            qty_map[pid] = qty_map.get(pid, 0) + qty
+            qty_map[pid] = _positive_int(qty_map.get(pid, 0) + qty)
     except Exception:
         return jsonify({"msg": "Dữ liệu items không hợp lệ"}), 400
-    customer_name = (customer.get('name') or user.username or '').strip()
-    customer_phone = (customer.get('phone') or user.phone or '').strip()
-    customer_address = (customer.get('address') or user.address or '').strip()
-    customer_email = (customer.get('email') or '').strip()
+    try:
+        customer = _validated_text_fields(customer, {'name': 120, 'phone': 20, 'address': 1000, 'email': 120},
+                                           single_line=('name', 'phone', 'email'))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    customer_name = customer['name'] or user.username or ''
+    customer_phone = customer['phone'] or user.phone or ''
+    customer_address = customer['address'] or user.address or ''
+    customer_email = customer['email']
     if not customer_name or not customer_phone or not customer_address:
         return jsonify({"msg": "Thiếu thông tin khách hàng (name/phone/address)!"}), 400
     if customer_email and not _is_valid_email(customer_email):
         return jsonify({"msg": "Định dạng Email không hợp lệ!"}), 400
     payment_method = (data.get('payment_method') or data.get('provider') or 'cod')
-    payment_method = str(payment_method or '').strip().lower()
+    if not isinstance(payment_method, str):
+        return jsonify({'msg': 'Phương thức thanh toán không hợp lệ'}), 400
+    payment_method = payment_method.strip().lower()
     if payment_method not in ('cod', 'payos'):
-        payment_method = 'cod'
-    idem_key = ((data.get('idempotency_key') if isinstance(data, dict) else None) or request.headers.get('Idempotency-Key') or '').strip()
+        return jsonify({'msg': 'Phương thức thanh toán không được hỗ trợ'}), 400
+    raw_key = data.get('idempotency_key', request.headers.get('Idempotency-Key', ''))
+    if not isinstance(raw_key, str) or len(raw_key) > 120 or '\r' in raw_key or '\n' in raw_key:
+        return jsonify({'msg': 'Khóa yêu cầu không hợp lệ'}), 400
+    idem_key = raw_key.strip()
     idem_hash = None
     if idem_key:
         idem_hash = _compute_order_request_hash(customer_name, customer_phone, customer_address, customer_email, qty_map, payment_method)
@@ -1584,9 +1698,11 @@ def create_order():
             p = prod_map[pid]
             if p.stock is not None and int(p.stock) < int(qty):
                 raise RuntimeError(f'out_of_stock:{pid}')
+        total_amount = sum(int(prod_map[pid].price) * qty for pid, qty in qty_map.items())
+        if not 0 <= total_amount <= 9223372036854775807:
+            raise RuntimeError('invalid_total')
         for pid, qty in qty_map.items():
             p = prod_map[pid]
-            total_amount += int(p.price) * int(qty)
             if p.stock is not None:
                 p.stock = int(p.stock) - int(qty)
         for _ in range(10):
@@ -1660,6 +1776,8 @@ def create_order():
     except RuntimeError as e:
         db.session.rollback()
         msg = str(e)
+        if msg == 'invalid_total':
+            return jsonify({'msg': 'Giá trị đơn hàng nằm ngoài phạm vi cho phép'}), 400
         if msg.startswith('out_of_stock:'):
             try:
                 pid = int(msg.split(':', 1)[1])
@@ -2520,8 +2638,11 @@ def add_banner():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    db.session.add(Banner(img=data['img'], position=data['position']))
+    try:
+        data = _validated_banner_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    db.session.add(Banner(**data))
     db.session.commit()
     return jsonify({"msg": "OK"}), 201
 
@@ -2532,6 +2653,8 @@ def delete_banner(id):
     if err:
         return err
     b = db.session.get(Banner, id)
+    if not b:
+        return jsonify({'msg': 'Banner không tồn tại'}), 404
     db.session.delete(b)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -2551,10 +2674,15 @@ def update_banner(id):
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
     b = db.session.get(Banner, id)
-    b.img = data['img']
-    b.position = data['position']
+    if not b:
+        return jsonify({'msg': 'Banner không tồn tại'}), 404
+    try:
+        data = _validated_banner_input(request.get_json(silent=True), partial=True)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    for name, value in data.items():
+        setattr(b, name, value)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
 
@@ -2564,29 +2692,29 @@ def create_banner():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    db.session.add(Banner(img=data['img'], position=data['position']))
+    try:
+        data = _validated_banner_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    db.session.add(Banner(**data))
     db.session.commit()
     return jsonify({"msg": "OK"}), 201
 
 @app.route('/api/public/news', methods=['GET'])
 def public_news_list():
     status = (request.args.get('status') or '').strip().lower()
+    if status not in ('', 'published'):
+        return jsonify({'msg': 'Chỉ hỗ trợ xem tin đã xuất bản.'}), 400
     now = datetime.now()
-    q = NewsPost.query
-    if status in ('draft', 'published', 'scheduled', 'hidden'):
-        q = q.filter(NewsPost.status == status)
-    else:
-        q = q.filter(NewsPost.status.in_(['published', 'scheduled']))
+    q = NewsPost.query.filter(or_(NewsPost.status == 'published', and_(
+        NewsPost.status == 'scheduled', NewsPost.scheduled_at.is_not(None), NewsPost.scheduled_at <= now)))
     rows = q.order_by(NewsPost.updated_at.desc()).all()
     res = []
     for r in rows:
-        if r.status == 'scheduled' and r.scheduled_at and r.scheduled_at > now and not status:
-            continue
         res.append({
             "id": r.id, "title": r.title, "slug": r.slug, "summary": r.summary,
             "content": r.content, "thumbnail": r.thumbnail, "banner": r.banner,
-            "status": 'published' if (r.status == 'scheduled' and r.scheduled_at and r.scheduled_at <= now) else r.status,
+            "status": 'published',
             "scheduled_at": _fmt_dt(r.scheduled_at), "created_at": _fmt_dt(r.created_at),
             "updated_at": _fmt_dt(r.updated_at),
         })
@@ -2612,24 +2740,14 @@ def admin_news_create():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    title = (data.get('title') or '').strip()
-    content = (data.get('content') or '').strip()
-    slug = _slugify((data.get('slug') or '').strip() or title)
-    status = (data.get('status') or 'draft').strip().lower()
-    if status not in ('draft', 'published', 'scheduled', 'hidden'):
-        status = 'draft'
-    if not title or not content:
-        return jsonify({"msg": "Thiếu title/content"}), 400
-    dup = NewsPost.query.filter_by(slug=slug).first()
-    if dup:
-        slug = f"{slug}-{uuid.uuid4().hex[:6]}"
-    row = NewsPost(
-        title=title, slug=slug, summary=(data.get('summary') or '').strip() or None,
-        content=content, thumbnail=(data.get('thumbnail') or '').strip() or None,
-        banner=(data.get('banner') or '').strip() or None, status=status,
-        scheduled_at=_parse_datetime(data.get('scheduled_at') or '')
-    )
+    try:
+        values = _validated_news_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    slug = values['slug']
+    if NewsPost.query.filter_by(slug=slug).first():
+        values['slug'] = f"{slug[:253]}-{uuid.uuid4().hex[:6]}"
+    row = NewsPost(**values)
     db.session.add(row)
     db.session.commit()
     return jsonify({"msg": "OK", "id": row.id}), 201
@@ -2643,28 +2761,14 @@ def admin_news_update(id):
     row = db.session.get(NewsPost, id)
     if not row:
         return jsonify({"msg": "Bài viết không tồn tại"}), 404
-    data = request.get_json() or {}
-    if 'title' in data:
-        row.title = (data.get('title') or '').strip() or row.title
-    if 'slug' in data:
-        wanted = _slugify((data.get('slug') or '').strip() or row.title)
-        if wanted != row.slug and NewsPost.query.filter(NewsPost.slug == wanted, NewsPost.id != row.id).first():
-            wanted = f"{wanted}-{uuid.uuid4().hex[:6]}"
-        row.slug = wanted
-    if 'summary' in data:
-        row.summary = (data.get('summary') or '').strip() or None
-    if 'content' in data:
-        row.content = (data.get('content') or '').strip() or row.content
-    if 'thumbnail' in data:
-        row.thumbnail = (data.get('thumbnail') or '').strip() or None
-    if 'banner' in data:
-        row.banner = (data.get('banner') or '').strip() or None
-    if 'status' in data:
-        status = (data.get('status') or '').strip().lower()
-        if status in ('draft', 'published', 'scheduled', 'hidden'):
-            row.status = status
-    if 'scheduled_at' in data:
-        row.scheduled_at = _parse_datetime(data.get('scheduled_at') or '')
+    try:
+        values = _validated_news_input(request.get_json(silent=True), row)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if 'slug' in values and NewsPost.query.filter(NewsPost.slug == values['slug'], NewsPost.id != id).first():
+        values['slug'] = f"{values['slug'][:253]}-{uuid.uuid4().hex[:6]}"
+    for name, value in values.items():
+        setattr(row, name, value)
     row.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -2693,31 +2797,29 @@ def admin_warranty_list():
         "id": r.id, "warranty_code": r.warranty_code, "product_name": r.product_name,
         "serial_imei": r.serial_imei, "customer_name": r.customer_name, "phone": r.phone,
         "activated_at": _fmt_date(r.activated_at), "expired_at": _fmt_date(r.expired_at),
-        "status": r.status, "history": json.loads(r.history) if r.history else [],
+        "status": r.status, "history": _decoded_warranty_history(r.history),
         "created_at": _fmt_dt(r.created_at), "updated_at": _fmt_dt(r.updated_at),
     } for r in rows]), 200
 
 @app.route('/api/public/warranty/lookup', methods=['GET'])
 def public_warranty_lookup():
-    code = (request.args.get('code') or '').strip()
-    serial = (request.args.get('serial') or '').strip()
-    phone = (request.args.get('phone') or '').strip()
-    q = WarrantyRecord.query
-    if code:
-        q = q.filter(WarrantyRecord.warranty_code == code)
-    elif serial:
-        q = q.filter(WarrantyRecord.serial_imei == serial)
-    elif phone:
-        q = q.filter(WarrantyRecord.phone == phone)
-    else:
-        return jsonify({"msg": "Thiếu tham số tra cứu"}), 400
-    rows = q.order_by(WarrantyRecord.updated_at.desc()).all()
-    return jsonify([{
-        "id": r.id, "warranty_code": r.warranty_code, "product_name": r.product_name,
-        "serial_imei": r.serial_imei, "customer_name": r.customer_name, "phone": r.phone,
-        "activated_at": _fmt_date(r.activated_at), "expired_at": _fmt_date(r.expired_at),
-        "status": r.status, "history": json.loads(r.history) if r.history else [],
-    } for r in rows]), 200
+    fields = {'phone': 25, 'identifier': 120, 'code': 80, 'serial': 120}
+    values = {name: (request.args.get(name) or '').strip() for name in fields}
+    if any(len(values[name]) > limit for name, limit in fields.items()):
+        return jsonify({'msg': 'Thông tin tra cứu quá dài'}), 400
+    if not values['phone'] or not any(values[name] for name in ('identifier', 'code', 'serial')):
+        return jsonify({'msg': 'Cần số điện thoại đăng ký và mã bảo hành hoặc Serial/IMEI'}), 400
+    query = WarrantyRecord.query.filter_by(phone=values['phone'])
+    if values['identifier']:
+        query = query.filter(or_(WarrantyRecord.warranty_code == values['identifier'], WarrantyRecord.serial_imei == values['identifier']))
+    if values['code']:
+        query = query.filter_by(warranty_code=values['code'])
+    if values['serial']:
+        query = query.filter_by(serial_imei=values['serial'])
+    rows = query.order_by(WarrantyRecord.updated_at.desc()).limit(20).all()
+    return jsonify([{'warranty_code': row.warranty_code, 'product_name': row.product_name,
+        'serial_imei': '****' + (row.serial_imei or '')[-4:], 'activated_at': _fmt_date(row.activated_at),
+        'expired_at': _fmt_date(row.expired_at), 'status': row.status, 'history': []} for row in rows]), 200
 
 @app.route('/admin/warranty', methods=['POST'])
 @jwt_required()
@@ -2725,26 +2827,13 @@ def admin_warranty_create():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    code = (data.get('warranty_code') or '').strip()
-    product = (data.get('product_name') or '').strip()
-    phone = (data.get('phone') or '').strip()
-    if not code or not product or not phone:
-        return jsonify({"msg": "Thiếu warranty_code/product_name/phone"}), 400
-    if WarrantyRecord.query.filter_by(warranty_code=code).first():
-        return jsonify({"msg": "Mã bảo hành đã tồn tại"}), 400
-    status = (data.get('status') or 'active').strip().lower()
-    if status not in ('active', 'processing', 'expired'):
-        status = 'active'
-    history = data.get('history') or []
-    if not isinstance(history, list):
-        history = []
-    row = WarrantyRecord(
-        warranty_code=code, product_name=product, serial_imei=(data.get('serial_imei') or '').strip() or None,
-        customer_name=(data.get('customer_name') or '').strip() or None, phone=phone,
-        activated_at=_parse_date(data.get('activated_at') or ''), expired_at=_parse_date(data.get('expired_at') or ''),
-        status=status, history=json.dumps(history, ensure_ascii=False),
-    )
+    try:
+        values = _validated_warranty_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if WarrantyRecord.query.filter_by(warranty_code=values['warranty_code']).first():
+        return jsonify({'msg': 'Mã bảo hành đã tồn tại'}), 400
+    row = WarrantyRecord(**values)
     db.session.add(row)
     db.session.commit()
     return jsonify({"msg": "OK", "id": row.id}), 201
@@ -2758,36 +2847,15 @@ def admin_warranty_update(id):
     row = db.session.get(WarrantyRecord, id)
     if not row:
         return jsonify({"msg": "Hồ sơ bảo hành không tồn tại"}), 404
-    data = request.get_json() or {}
-    if 'warranty_code' in data:
-        code = (data.get('warranty_code') or '').strip()
-        if not code:
-            return jsonify({"msg": "warranty_code không hợp lệ"}), 400
-        dup = WarrantyRecord.query.filter(WarrantyRecord.warranty_code == code, WarrantyRecord.id != id).first()
-        if dup:
-            return jsonify({"msg": "Mã bảo hành đã tồn tại"}), 400
-        row.warranty_code = code
-    if 'product_name' in data:
-        row.product_name = (data.get('product_name') or '').strip() or row.product_name
-    if 'serial_imei' in data:
-        row.serial_imei = (data.get('serial_imei') or '').strip() or None
-    if 'customer_name' in data:
-        row.customer_name = (data.get('customer_name') or '').strip() or None
-    if 'phone' in data:
-        row.phone = (data.get('phone') or '').strip() or row.phone
-    if 'activated_at' in data:
-        row.activated_at = _parse_date(data.get('activated_at') or '')
-    if 'expired_at' in data:
-        row.expired_at = _parse_date(data.get('expired_at') or '')
-    if 'status' in data:
-        status = (data.get('status') or '').strip().lower()
-        if status in ('active', 'processing', 'expired'):
-            row.status = status
-    if 'history' in data:
-        history = data.get('history') or []
-        if not isinstance(history, list):
-            history = []
-        row.history = json.dumps(history, ensure_ascii=False)
+    try:
+        values = _validated_warranty_input(request.get_json(silent=True), row)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if 'warranty_code' in values and WarrantyRecord.query.filter(
+            WarrantyRecord.warranty_code == values['warranty_code'], WarrantyRecord.id != id).first():
+        return jsonify({'msg': 'Mã bảo hành đã tồn tại'}), 400
+    for name, value in values.items():
+        setattr(row, name, value)
     row.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "OK"}), 200

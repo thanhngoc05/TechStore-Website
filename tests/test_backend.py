@@ -1162,6 +1162,133 @@ class BackendTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_public_news_never_exposes_drafts_hidden_or_future_posts(self):
+        with backend.app.app_context():
+            now = backend.datetime.now()
+            for slug, status, schedule in [('live', 'published', None), ('draft', 'draft', None),
+                ('hidden', 'hidden', None), ('future', 'scheduled', now + backend.timedelta(days=1)),
+                ('due', 'scheduled', now - backend.timedelta(minutes=1)), ('unscheduled', 'scheduled', None)]:
+                backend.db.session.add(backend.NewsPost(title=slug, slug=slug, status=status,
+                    content='Test content', scheduled_at=schedule))
+            backend.db.session.commit()
+        for suffix in ('', '?status=published'):
+            response = self.client.get('/api/public/news' + suffix)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual({row['slug'] for row in response.json}, {'live', 'due'})
+        for status in ('draft', 'hidden', 'scheduled', 'unknown'):
+            self.assertEqual(self.client.get('/api/public/news?status=' + status).status_code, 400)
+        self.make_admin()
+        self.assertEqual(len(self.client.get('/admin/news', headers=self.headers).json), 6)
+
+    def test_checkout_rejects_invalid_customer_payment_and_request_key(self):
+        base = {'items': [{'product_id': 1, 'quantity': 1}],
+            'customer': {'name': 'Buyer', 'phone': '0900000000', 'address': 'Test'}}
+        for body in (dict(base, customer={'name': 123}), dict(base, customer={'address': 'x' * 1001}),
+                     dict(base, payment_method='unknown'), dict(base, payment_method=123),
+                     dict(base, idempotency_key=123), dict(base, idempotency_key='x' * 121),
+                     dict(base, clear_cart_item_ids=[True]),
+                     dict(base, items=[{'product_id': 2147483648, 'quantity': 1}])):
+            self.assertEqual(self.client.post('/api/orders', headers=self.headers, json=body).status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
+    def test_checkout_total_overflow_does_not_mutate_stock(self):
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).price = 4611686018427387904
+            backend.db.session.commit()
+        response = self.order(headers=dict(self.headers, **{'Idempotency-Key': 'overflow-test'}))
+        self.assertEqual(response.status_code, 400, response.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.OrderIdempotency.query.count(), 0)
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
+    def test_banner_aliases_validate_images_and_input(self):
+        self.make_admin()
+        for route in ('/admin/banner', '/admin/banners/add'):
+            for body in ([], {}, {'img': 123}, {'img': 'javascript:alert(1)'},
+                         {'img': 'data:image/svg+xml,test'}, {'img': '//example.com/image.png'},
+                         {'img': '/image.png" onerror="alert(1)'}, {'img': '/image.png', 'position': 'x' * 51}):
+                self.assertEqual(self.client.post(route, headers=self.headers, json=body).status_code, 400)
+            response = self.client.post(route, headers=self.headers,
+                                        json={'img': '../assets/img/LOGO.png', 'position': 'home-slider'})
+            self.assertEqual(response.status_code, 201, response.json)
+
+    def test_banner_partial_update_and_missing_rows(self):
+        self.make_admin()
+        self.client.post('/admin/banner', headers=self.headers, json={'img': '/image.png', 'position': 'old'})
+        response = self.client.put('/admin/banner/1', headers=self.headers, json={'position': 'new'})
+        self.assertEqual(response.status_code, 200)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Banner, 1).img, '/image.png')
+        self.assertEqual(self.client.put('/admin/banner/999', headers=self.headers, json={}).status_code, 404)
+        self.assertEqual(self.client.delete('/admin/banners/delete/999', headers=self.headers).status_code, 404)
+
+    def test_news_editor_validates_schedule_urls_and_atomic_updates(self):
+        self.make_admin()
+        base = {'title': 'Scheduled post', 'content': 'Test content', 'status': 'scheduled',
+                'scheduled_at': '2030-01-02T10:30'}
+        for body in ([], {}, dict(base, scheduled_at='invalid'), dict(base, scheduled_at=''),
+                     dict(base, thumbnail='javascript:alert(1)'), dict(base, title='x' * 251),
+                     dict(base, status='unknown')):
+            self.assertEqual(self.client.post('/admin/news', headers=self.headers, json=body).status_code, 400)
+        response = self.client.post('/admin/news', headers=self.headers, json=base)
+        self.assertEqual(response.status_code, 201, response.json)
+        article_id = response.json['id']
+        response = self.client.put(f'/admin/news/{article_id}', headers=self.headers,
+            json={'title': 'Changed', 'scheduled_at': 'bad'})
+        self.assertEqual(response.status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.NewsPost, article_id).title, base['title'])
+        self.assertEqual(self.client.put(f'/admin/news/{article_id}', headers=self.headers,
+            json={'summary': 'Partial update'}).status_code, 200)
+
+    def test_public_warranty_requires_two_factors_and_minimizes_personal_data(self):
+        with backend.app.app_context():
+            backend.db.session.add(backend.WarrantyRecord(warranty_code='WR-1', product_name='Laptop',
+                serial_imei='SERIAL123456', customer_name='Private Customer', phone='0900000000',
+                history=backend.json.dumps(['Internal private note'])))
+            backend.db.session.commit()
+        for query in ('phone=0900000000', 'serial=SERIAL123456', 'phone=0900000000&identifier=' + 'x' * 121):
+            self.assertEqual(self.client.get('/api/public/warranty/lookup?' + query).status_code, 400)
+        self.assertEqual(self.client.get('/api/public/warranty/lookup?phone=0999999999&serial=SERIAL123456').json, [])
+        response = self.client.get('/api/public/warranty/lookup?phone=0900000000&identifier=SERIAL123456')
+        self.assertEqual(response.status_code, 200)
+        record = response.json[0]
+        self.assertEqual(record['serial_imei'], '****3456')
+        self.assertNotIn('phone', record)
+        self.assertNotIn('customer_name', record)
+        self.assertEqual(record['history'], [])
+
+    def test_warranty_editor_validates_dates_and_preserves_partial_updates(self):
+        self.make_admin()
+        base = {'warranty_code': 'WR-1', 'product_name': 'Laptop', 'phone': '0900000000',
+                'activated_at': '2026-01-01', 'expired_at': '2027-01-01', 'history': ['Checked']}
+        for body in ([], {}, dict(base, expired_at='2025-01-01'), dict(base, activated_at='bad'),
+                     dict(base, history=[{}]), dict(base, phone='invalid'), dict(base, status='unknown')):
+            self.assertEqual(self.client.post('/admin/warranty', headers=self.headers, json=body).status_code, 400)
+        response = self.client.post('/admin/warranty', headers=self.headers, json=base)
+        self.assertEqual(response.status_code, 201, response.json)
+        record_id = response.json['id']
+        response = self.client.put(f'/admin/warranty/{record_id}', headers=self.headers,
+                                  json={'product_name': 'Changed', 'expired_at': '2020-01-01'})
+        self.assertEqual(response.status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.WarrantyRecord, record_id).product_name, 'Laptop')
+        self.assertEqual(self.client.put(f'/admin/warranty/{record_id}', headers=self.headers,
+                                        json={'status': 'processing'}).status_code, 200)
+
+    def test_warranty_editor_tolerates_invalid_legacy_history(self):
+        self.make_admin()
+        with backend.app.app_context():
+            backend.db.session.add(backend.WarrantyRecord(warranty_code='OLD', product_name='Laptop',
+                                                          phone='0900000000', history='{broken'))
+            backend.db.session.commit()
+        response = self.client.get('/api/warranty', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json[0]['history'], [])
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -8,7 +8,8 @@
 - Contact validation, authenticated refund requests, paid-order cancellation review, readable lookup messages and escaped order rendering: PR #13, merged into main.
 - Expiring password-reset links, session invalidation and deletion integrity: PR #14, merged into main.
 - Durable refund request queue, review/audit workflow, customer tracking and reset-token retention tooling: PR #15, merged into main.
-- Current follow-up: shared request limits, delivery retries, readiness/schema preflight and a validated WSGI entrypoint.
+- Shared request limits, delivery retries, readiness/schema preflight and a validated WSGI entrypoint: PR #16, merged into main.
+- Current follow-up: public news privacy, checkout retry safety, editor/order validation, private warranty lookup, explicit trusted proxy settings and Chromium smoke tests.
 
 ## Verification completed locally
 
@@ -43,9 +44,19 @@
 ## Remaining integration work
 
 - Verify schema updates on a copy of existing MySQL data; the CI service starts with a clean database.
-- Verify checkout in a browser, including return and cancel URLs. A browser redirect must not be treated as evidence of payment.
+- Chromium smoke tests cover catalog navigation, registration/login, refund permissions/tracking and a forged paid return against a disposable backend. Expand coverage to the complete checkout, cancellation and actual provider return flow in a controlled environment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
 - Load-test shared request limits under multiple workers and verify trusted proxy, retention policy and deployment settings before production use.
 - Implement and verify provider-side refund execution/reconciliation separately. A resolved support request is not evidence of a financial refund.
 - Define retention/access policy for stored refund bank details and an operational process for manual notification retries.
+
+## Storefront validation follow-up
+
+- Public news rejects private status filters and exposes scheduled posts only after their scheduled time. The editor accepts HTML datetime-local values, validates status/date combinations and preserves omitted fields.
+- Checkout preserves the same idempotency key after conflicts, rate limits and connection errors. The browser never retries a conflicting request with a fresh key automatically.
+- Orders reject malformed customer fields, item lists, methods and numeric overflow before changing stock. Banner/news image paths allow HTTP(S) or local files and reject unsafe schemes.
+- Warranty lookup requires both a phone number and a matching code/serial, limits attempts and masks public results. Internal notes and customer contact details stay in the administration interface.
+- Warranty editing validates dates, statuses, field sizes and history; malformed legacy history cannot break the list endpoint.
+- Waitress trusts forwarded client/protocol headers only from an explicitly configured proxy IP. Middleware tests cover both trusted and spoofed remote peers.
+- Browser tests run in GitHub Actions with Chromium, use a separate SQLite database under instance/browser-tests and never reuse a running application server. They do not contact SMTP or payOS.

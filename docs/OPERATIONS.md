@@ -25,6 +25,10 @@ Lệnh khởi động ứng dụng qua Waitress, mặc định tại `127.0.0.1:
 
 Bản chạy này không tự cấu hình HTTPS, reverse proxy hoặc dịch vụ chạy nền. `PUBLIC_BASE_URL` vẫn phải trỏ đến địa chỉ HTTPS của website khi gửi liên kết khôi phục thật.
 
+Nếu đã có reverse proxy, đặt `TRUSTED_PROXY` bằng đúng IP của máy proxy kết nối trực tiếp đến Waitress, ví dụ `127.0.0.1`. Mặc định để trống: các header chuyển tiếp từ khách bị loại bỏ. Không nhận `*`, tên miền hoặc dải mạng. `TRUSTED_PROXY_COUNT` từ 1 đến 5 là số proxy được tin trong chuỗi; chỉ tăng khi đã kiểm chứng toàn bộ chuỗi. `TRUSTED_PROXY_HEADERS` để trống sẽ chọn `x-forwarded-for x-forwarded-proto`; không nhận các header khác.
+
+Proxy phải ghi đè hoặc làm sạch các header từ khách, và cổng Waitress chỉ cho proxy truy cập. Kiểm tra IP khách và HTTPS tại môi trường triển khai trước khi dùng giới hạn yêu cầu chung. Thay đổi này chỉ cung cấp tùy chọn ứng dụng, chưa cấu hình hạ tầng.
+
 ## Kiểm tra sống và sẵn sàng
 
 - `/api/health`: tiến trình đang trả lời; không kiểm tra database.
@@ -48,10 +52,19 @@ Bộ đếm được lưu trong `request_rate_buckets`, dùng chung database và
 | Gửi đánh giá | 30 |
 | Cập nhật duyệt yêu cầu | 30 |
 | Gửi lại thông báo hoàn tiền | 5 |
+| Tra cứu bảo hành | 15 |
 
 `RATE_LIMIT_ENABLED=1` mặc định bật. Nếu kho bộ đếm không truy cập được, các thao tác được giới hạn trả 503. Cửa sổ cố định có thể cho phép một đợt yêu cầu ở cuối phút và một đợt nữa ở đầu phút tiếp theo.
 
-Bộ đếm dùng `REMOTE_ADDR`, không tin `X-Forwarded-For` do khách gửi. Cấu hình proxy tin cậy cần được kiểm chứng riêng để nhiều khách phía sau reverse proxy không bị nhận thành cùng một IP. Đây chưa phải kiểm tra tải hoặc bảo vệ chống mọi hình thức lạm dụng.
+Bộ đếm dùng `REMOTE_ADDR` sau bước xử lý proxy của Waitress. Chỉ bật proxy tin cậy theo hướng dẫn trên để nhiều khách phía sau reverse proxy được nhận diện đúng. Đây chưa phải kiểm tra tải hoặc bảo vệ chống mọi hình thức lạm dụng.
+
+## Tin tức, bảo hành và tạo đơn
+
+Tin nháp/ẩn không xuất hiện qua API công khai. Tin hẹn giờ chỉ xuất hiện sau thời điểm được lưu; thời gian hiện dùng đồng hồ máy chủ, cần đặt múi giờ thống nhất với người biên tập. Lọc trạng thái khác `published` qua API công khai trả 400.
+
+Tra cứu bảo hành yêu cầu cả số điện thoại và mã phiếu hoặc serial khớp hồ sơ. Kết quả công khai che serial và không trả tên khách, điện thoại, ghi chú nội bộ hoặc lịch sử nội bộ. Hướng dẫn khách dùng đủ hai thông tin sau khi cập nhật website.
+
+Khi tạo đơn gặp 409, 429 hoặc mất kết nối, giữ nguyên mã yêu cầu để lần thử lại không tạo đơn khác. Giao diện chỉ xóa mã sau khi nhận được mã đơn hợp lệ; không tự gửi lại bằng mã mới khi gặp xung đột. Backend kiểm tra thông tin khách, phương thức thanh toán, số lượng và tổng tiền trước khi trừ kho.
 
 ## Thông báo hoàn tiền bị lỗi
 

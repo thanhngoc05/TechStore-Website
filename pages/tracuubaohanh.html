@@ -456,6 +456,7 @@
                 Vui lòng không để trống số điện thoại.
               </div>
             </div>
+            <div class="form-group"><label for="inputPhoneIdentifier">Mã bảo hành hoặc Serial/IMEI</label><input type="text" id="inputPhoneIdentifier" maxlength="120" placeholder="Nhập mã trên phiếu hoặc sản phẩm" /></div>
             <button class="btn-lookup" onclick="handleLookup('phone')">
               TRA CỨU NGAY
             </button>
@@ -473,6 +474,7 @@
                 Vui lòng nhập mã IMEI hoặc Serial.
               </div>
             </div>
+            <div class="form-group"><label for="inputImeiPhone">Số điện thoại đăng ký</label><input type="tel" id="inputImeiPhone" maxlength="25" placeholder="Nhập số điện thoại trên hồ sơ bảo hành" /></div>
             <button class="btn-lookup" onclick="handleLookup('imei')">
               TRA CỨU NGAY
             </button>
@@ -560,100 +562,7 @@
     <script src="../scripts/api-config.js"></script>
     <script src="../scripts/scripts.js"></script>
     <script src="../scripts/sidebar.js"></script>
-    <script>
-      function switchTab(tabId) {
-        document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
-        document.querySelectorAll(".tab-item").forEach((t) => t.classList.remove("active"));
-        document.getElementById("resultBox").style.display = "none";
-
-        document.getElementById(tabId).classList.add("active");
-        const trigger = Array.from(document.querySelectorAll(".tab-item")).find((x) => {
-          if (tabId === "tab-phone") return x.textContent.toLowerCase().includes("điện thoại");
-          return x.textContent.toLowerCase().includes("imei");
-        });
-        if (trigger) trigger.classList.add("active");
-      }
-
-      async function handleLookup(type) {
-        const input = type === "phone" ? document.getElementById("inputPhone") : document.getElementById("inputImei");
-        const errorMsg = type === "phone" ? document.getElementById("errPhone") : document.getElementById("errImei");
-        const resultBox = document.getElementById("resultBox");
-
-        input.classList.remove("error");
-        errorMsg.style.display = "none";
-        resultBox.style.display = "none";
-
-        const value = input.value.trim();
-        if (!value) {
-          input.classList.add("error");
-          errorMsg.style.display = "block";
-          input.focus();
-          return;
-        }
-
-        try {
-          const params = new URLSearchParams();
-          if (type === "phone") params.set("phone", value);
-          else params.set("serial", value);
-
-          const res = await fetch(window.apiUrl(`/api/public/warranty/lookup?${params.toString()}`));
-          const data = await res.json().catch(() => []);
-          if (!res.ok) {
-            throw new Error((data && data.msg) || `HTTP ${res.status}`);
-          }
-
-          const first = Array.isArray(data) ? data[0] : null;
-          if (!first) {
-            resultBox.innerHTML = `<h3 style="color:#d70018">Không tìm thấy dữ liệu bảo hành</h3><p style="margin:0;color:#666">Vui lòng kiểm tra lại thông tin tra cứu.</p>`;
-            resultBox.style.display = "block";
-            return;
-          }
-
-          const statusText = {
-            active: "Còn bảo hành",
-            expired: "Hết bảo hành",
-            processing: "Đang xử lý",
-          }[String(first.status || "").toLowerCase()] || first.status || "N/A";
-
-          const history = Array.isArray(first.history) && first.history.length
-            ? `<div style="margin-top:10px;font-size:13px;color:#475569"><b>Lịch sử xử lý:</b><ul style="margin:6px 0 0 16px;padding:0">${first.history
-                .map((h) => `<li>${String(h || "")}</li>`)
-                .join("")}</ul></div>`
-            : "";
-
-          resultBox.innerHTML = `
-            <h3>Thông tin sản phẩm</h3>
-            <div class="result-item"><span>Mã bảo hành:</span><span>${first.warranty_code || "-"}</span></div>
-            <div class="result-item"><span>Tên sản phẩm:</span><span>${first.product_name || "-"}</span></div>
-            <div class="result-item"><span>Serial/IMEI:</span><span>${first.serial_imei || "-"}</span></div>
-            <div class="result-item"><span>Ngày kích hoạt:</span><span>${first.activated_at || "-"}</span></div>
-            <div class="result-item"><span>Hạn bảo hành:</span><span>${first.expired_at || "-"}</span></div>
-            <div class="result-item"><span>Trạng thái:</span><span style="color:${String(first.status || "").toLowerCase() === "active" ? "#16a34a" : "#d70018"}">${statusText}</span></div>
-            ${history}
-          `;
-          resultBox.style.display = "block";
-          resultBox.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        } catch (err) {
-          resultBox.innerHTML = `<h3 style="color:#d70018">Không thể tra cứu bảo hành</h3><p style="margin:0;color:#666">${err.message || "Lỗi không xác định"}</p>`;
-          resultBox.style.display = "block";
-        }
-      }
-
-      document.querySelectorAll(".tabs .tab-item").forEach((item) => {
-        item.addEventListener("click", () => {
-          const isPhone = item.textContent.toLowerCase().includes("điện thoại");
-          switchTab(isPhone ? "tab-phone" : "tab-imei");
-        });
-      });
-
-      document.querySelectorAll("input").forEach((inp) => {
-        inp.addEventListener("input", function () {
-          this.classList.remove("error");
-          const err = this.parentElement.querySelector(".error-msg");
-          if (err) err.style.display = "none";
-        });
-      });
-    </script>
+    <script src="../scripts/warranty-lookup.js"></script>
     <script src="../scripts/CheckLogin.js"></script>
   </body>
 </html>
