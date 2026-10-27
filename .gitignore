@@ -56,3 +56,6 @@ Thumbs.db
 .ruff_cache/
 .coverage
 htmlcov/
+node_modules/
+tests/browser/test-results/
+tests/browser/playwright-report/
