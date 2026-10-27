@@ -1225,6 +1225,25 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.put('/admin/banner/999', headers=self.headers, json={}).status_code, 404)
         self.assertEqual(self.client.delete('/admin/banners/delete/999', headers=self.headers).status_code, 404)
 
+    def test_news_editor_validates_schedule_urls_and_atomic_updates(self):
+        self.make_admin()
+        base = {'title': 'Scheduled post', 'content': 'Test content', 'status': 'scheduled',
+                'scheduled_at': '2030-01-02T10:30'}
+        for body in ([], {}, dict(base, scheduled_at='invalid'), dict(base, scheduled_at=''),
+                     dict(base, thumbnail='javascript:alert(1)'), dict(base, title='x' * 251),
+                     dict(base, status='unknown')):
+            self.assertEqual(self.client.post('/admin/news', headers=self.headers, json=body).status_code, 400)
+        response = self.client.post('/admin/news', headers=self.headers, json=base)
+        self.assertEqual(response.status_code, 201, response.json)
+        article_id = response.json['id']
+        response = self.client.put(f'/admin/news/{article_id}', headers=self.headers,
+            json={'title': 'Changed', 'scheduled_at': 'bad'})
+        self.assertEqual(response.status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.NewsPost, article_id).title, base['title'])
+        self.assertEqual(self.client.put(f'/admin/news/{article_id}', headers=self.headers,
+            json={'summary': 'Partial update'}).status_code, 200)
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -642,7 +642,7 @@ def _parse_datetime(value: str):
     s = (value or '').strip()
     if not s:
         return None
-    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M'):
+    for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%dT%H:%M'):
         try:
             return datetime.strptime(s, fmt)
         except Exception:
@@ -659,6 +659,38 @@ def _parse_date(value: str):
         except Exception:
             continue
     return None
+
+def _validated_news_input(data, existing=None):
+    fields = {'title': 250, 'slug': 260, 'summary': 2000, 'content': 100000, 'thumbnail': 600, 'banner': 600}
+    if existing:
+        if not isinstance(data, dict):
+            raise ValueError('Dữ liệu bài viết không hợp lệ')
+        fields = {name: limit for name, limit in fields.items() if name in data}
+    values = _validated_text_fields(data, fields, required=tuple(name for name in ('title', 'content') if name in fields),
+                                    single_line=tuple(name for name in ('title', 'slug') if name in fields))
+    if 'slug' in values or not existing:
+        values['slug'] = _slugify(values.get('slug') or values.get('title') or existing.title)[:260]
+    for name in ('thumbnail', 'banner'):
+        if name in values:
+            values[name] = _validated_image_url(values[name]) or None
+    for name in ('summary',):
+        if name in values:
+            values[name] = values[name] or None
+    status = data.get('status', existing.status if existing else 'draft')
+    if status not in ('draft', 'published', 'scheduled', 'hidden'):
+        raise ValueError('Trạng thái bài viết không hợp lệ')
+    scheduled = existing.scheduled_at if existing else None
+    if 'scheduled_at' in data:
+        raw = data['scheduled_at']
+        if not isinstance(raw, str):
+            raise ValueError('Ngày hẹn đăng không hợp lệ')
+        scheduled = _parse_datetime(raw)
+        if raw.strip() and not scheduled:
+            raise ValueError('Ngày hẹn đăng không hợp lệ')
+    if status == 'scheduled' and not scheduled:
+        raise ValueError('Bài hẹn đăng phải có ngày giờ hợp lệ')
+    values.update(status=status, scheduled_at=scheduled)
+    return values
 
 def _fmt_dt(v):
     return v.strftime('%d/%m/%Y %H:%M:%S') if v else None
@@ -2665,24 +2697,14 @@ def admin_news_create():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    title = (data.get('title') or '').strip()
-    content = (data.get('content') or '').strip()
-    slug = _slugify((data.get('slug') or '').strip() or title)
-    status = (data.get('status') or 'draft').strip().lower()
-    if status not in ('draft', 'published', 'scheduled', 'hidden'):
-        status = 'draft'
-    if not title or not content:
-        return jsonify({"msg": "Thiếu title/content"}), 400
-    dup = NewsPost.query.filter_by(slug=slug).first()
-    if dup:
-        slug = f"{slug}-{uuid.uuid4().hex[:6]}"
-    row = NewsPost(
-        title=title, slug=slug, summary=(data.get('summary') or '').strip() or None,
-        content=content, thumbnail=(data.get('thumbnail') or '').strip() or None,
-        banner=(data.get('banner') or '').strip() or None, status=status,
-        scheduled_at=_parse_datetime(data.get('scheduled_at') or '')
-    )
+    try:
+        values = _validated_news_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    slug = values['slug']
+    if NewsPost.query.filter_by(slug=slug).first():
+        values['slug'] = f"{slug[:253]}-{uuid.uuid4().hex[:6]}"
+    row = NewsPost(**values)
     db.session.add(row)
     db.session.commit()
     return jsonify({"msg": "OK", "id": row.id}), 201
@@ -2696,28 +2718,14 @@ def admin_news_update(id):
     row = db.session.get(NewsPost, id)
     if not row:
         return jsonify({"msg": "Bài viết không tồn tại"}), 404
-    data = request.get_json() or {}
-    if 'title' in data:
-        row.title = (data.get('title') or '').strip() or row.title
-    if 'slug' in data:
-        wanted = _slugify((data.get('slug') or '').strip() or row.title)
-        if wanted != row.slug and NewsPost.query.filter(NewsPost.slug == wanted, NewsPost.id != row.id).first():
-            wanted = f"{wanted}-{uuid.uuid4().hex[:6]}"
-        row.slug = wanted
-    if 'summary' in data:
-        row.summary = (data.get('summary') or '').strip() or None
-    if 'content' in data:
-        row.content = (data.get('content') or '').strip() or row.content
-    if 'thumbnail' in data:
-        row.thumbnail = (data.get('thumbnail') or '').strip() or None
-    if 'banner' in data:
-        row.banner = (data.get('banner') or '').strip() or None
-    if 'status' in data:
-        status = (data.get('status') or '').strip().lower()
-        if status in ('draft', 'published', 'scheduled', 'hidden'):
-            row.status = status
-    if 'scheduled_at' in data:
-        row.scheduled_at = _parse_datetime(data.get('scheduled_at') or '')
+    try:
+        values = _validated_news_input(request.get_json(silent=True), row)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if 'slug' in values and NewsPost.query.filter(NewsPost.slug == values['slug'], NewsPost.id != id).first():
+        values['slug'] = f"{values['slug'][:253]}-{uuid.uuid4().hex[:6]}"
+    for name, value in values.items():
+        setattr(row, name, value)
     row.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
