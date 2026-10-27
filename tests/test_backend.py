@@ -1204,6 +1204,27 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(backend.Order.query.count(), 0)
             self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
 
+    def test_banner_aliases_validate_images_and_input(self):
+        self.make_admin()
+        for route in ('/admin/banner', '/admin/banners/add'):
+            for body in ([], {}, {'img': 123}, {'img': 'javascript:alert(1)'},
+                         {'img': 'data:image/svg+xml,test'}, {'img': '//example.com/image.png'},
+                         {'img': '/image.png" onerror="alert(1)'}, {'img': '/image.png', 'position': 'x' * 51}):
+                self.assertEqual(self.client.post(route, headers=self.headers, json=body).status_code, 400)
+            response = self.client.post(route, headers=self.headers,
+                                        json={'img': '../assets/img/LOGO.png', 'position': 'home-slider'})
+            self.assertEqual(response.status_code, 201, response.json)
+
+    def test_banner_partial_update_and_missing_rows(self):
+        self.make_admin()
+        self.client.post('/admin/banner', headers=self.headers, json={'img': '/image.png', 'position': 'old'})
+        response = self.client.put('/admin/banner/1', headers=self.headers, json={'position': 'new'})
+        self.assertEqual(response.status_code, 200)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Banner, 1).img, '/image.png')
+        self.assertEqual(self.client.put('/admin/banner/999', headers=self.headers, json={}).status_code, 404)
+        self.assertEqual(self.client.delete('/admin/banners/delete/999', headers=self.headers).status_code, 404)
+
 
 if __name__ == '__main__':
     unittest.main()

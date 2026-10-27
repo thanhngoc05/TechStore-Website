@@ -468,6 +468,35 @@ def _validated_text_fields(data, fields, required=(), single_line=()):
         result[name] = value
     return result
 
+def _validated_image_url(value, maximum=600, required=False):
+    if not isinstance(value, str) or len(value) > maximum:
+        raise ValueError('Đường dẫn ảnh không hợp lệ hoặc quá dài')
+    value = value.strip()
+    if not value and not required:
+        return ''
+    if not value or any(ord(character) < 32 or character in '\\<>"\'' for character in value):
+        raise ValueError('Đường dẫn ảnh không hợp lệ')
+    try:
+        parsed = urlsplit(value)
+    except ValueError as error:
+        raise ValueError('Đường dẫn ảnh không hợp lệ') from error
+    if parsed.scheme:
+        if parsed.scheme not in ('http', 'https') or not parsed.netloc or parsed.username or parsed.password:
+            raise ValueError('Chỉ nhận đường dẫn ảnh HTTP/HTTPS hoặc tệp trong website')
+    elif parsed.netloc or value.startswith('//'):
+        raise ValueError('Đường dẫn ảnh cần chỉ rõ giao thức')
+    return value
+
+
+def _validated_banner_input(data, partial=False):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu banner không hợp lệ')
+    fields = {key: limit for key, limit in {'img': 600, 'position': 50}.items() if not partial or key in data}
+    values = _validated_text_fields(data, fields, single_line=tuple(fields))
+    if 'img' in values:
+        values['img'] = _validated_image_url(values['img'], required=True)
+    return values
+
 
 def _validated_product_input(data, partial=False):
     if not isinstance(data, dict):
@@ -2534,8 +2563,11 @@ def add_banner():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    db.session.add(Banner(img=data['img'], position=data['position']))
+    try:
+        data = _validated_banner_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    db.session.add(Banner(**data))
     db.session.commit()
     return jsonify({"msg": "OK"}), 201
 
@@ -2546,6 +2578,8 @@ def delete_banner(id):
     if err:
         return err
     b = db.session.get(Banner, id)
+    if not b:
+        return jsonify({'msg': 'Banner không tồn tại'}), 404
     db.session.delete(b)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
@@ -2565,10 +2599,15 @@ def update_banner(id):
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
     b = db.session.get(Banner, id)
-    b.img = data['img']
-    b.position = data['position']
+    if not b:
+        return jsonify({'msg': 'Banner không tồn tại'}), 404
+    try:
+        data = _validated_banner_input(request.get_json(silent=True), partial=True)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    for name, value in data.items():
+        setattr(b, name, value)
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
 
@@ -2578,8 +2617,11 @@ def create_banner():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json()
-    db.session.add(Banner(img=data['img'], position=data['position']))
+    try:
+        data = _validated_banner_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    db.session.add(Banner(**data))
     db.session.commit()
     return jsonify({"msg": "OK"}), 201
 
