@@ -15,6 +15,10 @@ async function authenticate(page, token) {
 }
 test.beforeEach(async ({ page }) => {
   await page.route('https://**/*', route => route.abort());
+  // Keep address selection deterministic without contacting the external location service.
+  await page.route('**/api/public/locations?depth=3', route => route.fulfill({
+    json: [{ name: 'Test Province', districts: [{ name: 'Test District', wards: [{ name: 'Test Ward' }] }] }],
+  }));
 });
 
 test('home displays products loaded from the real API', async ({ page }) => {
@@ -84,4 +88,64 @@ test('a forged paid return cannot create an order or unlock checkout', async ({ 
   await dialog.accept();
   await expect(page.locator('#mainNextBtn')).toBeDisabled();
   expect(await countOrders()).toEqual(before);
+});
+
+test('customer completes COD checkout once and cancels the order from its detail page', async ({ page, request }) => {
+  const token = await createUser(request);
+  const headers = { Authorization: `Bearer ${token}` };
+  const catalog = await request.get('/api/public/products');
+  expect(catalog.ok()).toBeTruthy();
+  const product = Object.values(await catalog.json()).flat().find(item => item.price > 0);
+  expect(product).toBeTruthy();
+  await authenticate(page, token);
+  const submittedOrders = [];
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/orders') {
+      submittedOrders.push(request.postDataJSON());
+    }
+  });
+  await page.goto(`/order-information.html?id=${product.id}`);
+  await expect(page.locator('#province')).toBeEnabled();
+  await page.locator('#customerName').fill('Browser Customer');
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#customerEmail').fill('checkout@example.com');
+  await page.locator('#province').selectOption('Test Province');
+  await page.locator('#district').selectOption('Test District');
+  await page.locator('#ward').selectOption('Test Ward');
+  await page.locator('#detailAddress').fill('42 Test Street');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+  await page.locator('#paymentMethod').selectOption('cod');
+  const createdResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders');
+  await page.locator('#mainNextBtn').click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  const { order_code: code } = await created.json();
+  expect(code).toBeTruthy();
+  await expect(page.locator('#step-3')).toBeVisible();
+  await expect(page.locator('#order-summary-card')).toContainText(code);
+  expect(submittedOrders).toHaveLength(1);
+  expect(submittedOrders[0].idempotency_key).toBeTruthy();
+  expect(await page.evaluate(() => sessionStorage.getItem('order_idempotency_key'))).toBeNull();
+
+  const detail = await request.get(`/api/orders/${encodeURIComponent(code)}`, { headers });
+  expect(detail.ok()).toBeTruthy();
+  expect(await detail.json()).toMatchObject({
+    order_code: code, status: 'processing', payment_method: 'cod', total_amount: product.price,
+    customer: { name: 'Browser Customer', address: '42 Test Street, Test Ward, Test District, Test Province' },
+    items: [{ product_id: product.id, quantity: 1, price: product.price }],
+  });
+
+  const dialogs = [];
+  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+  await page.goto(`/order-detail.html?order_code=${encodeURIComponent(code)}`);
+  await expect(page.locator('#odCancelBtn')).toBeVisible();
+  await page.locator('#odCancelBtn').click();
+  await expect(page.locator('#odCancelBtn')).toHaveCount(0);
+  expect(dialogs.some(message => message.includes(`Đã hủy đơn ${code} thành công`))).toBeTruthy();
+  const history = await request.get('/api/orders/me', { headers });
+  expect(history.ok()).toBeTruthy();
+  expect(await history.json()).toEqual([expect.objectContaining({ order_code: code, status: 'cancelled' })]);
+  expect(submittedOrders).toHaveLength(1);
 });

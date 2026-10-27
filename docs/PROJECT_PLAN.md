@@ -44,7 +44,7 @@
 ## Remaining integration work
 
 - Verify schema updates on a copy of existing MySQL data; the CI service starts with a clean database.
-- Chromium smoke tests cover catalog navigation, registration/login, refund permissions/tracking and a forged paid return against a disposable backend. Expand coverage to the complete checkout, cancellation and actual provider return flow in a controlled environment.
+- Chromium smoke tests cover catalog navigation, registration/login, refund permissions/tracking, a forged paid return, and complete COD checkout/cancellation against a disposable backend. Verify actual provider payment/return flows in a controlled environment.
 - Configure private payOS credentials and a public HTTPS webhook; verify live provider interaction in a controlled environment.
 - Verify SMTP delivery with a dedicated test mailbox. Current automated tests never send email.
 - Load-test shared request limits under multiple workers and verify trusted proxy, retention policy and deployment settings before production use.
@@ -60,3 +60,4 @@
 - Warranty editing validates dates, statuses, field sizes and history; malformed legacy history cannot break the list endpoint.
 - Waitress trusts forwarded client/protocol headers only from an explicitly configured proxy IP. Middleware tests cover both trusted and spoofed remote peers.
 - Browser tests run in GitHub Actions with Chromium, use a separate SQLite database under instance/browser-tests and never reuse a running application server. They do not contact SMTP or payOS.
+- The COD browser scenario fills shipping fields, verifies one order with the expected customer/items/total and checks cancellation through the order-detail page. Address options use an isolated fixture rather than the external location service.
