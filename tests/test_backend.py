@@ -1180,6 +1180,30 @@ class BackendTests(unittest.TestCase):
         self.make_admin()
         self.assertEqual(len(self.client.get('/admin/news', headers=self.headers).json), 6)
 
+    def test_checkout_rejects_invalid_customer_payment_and_request_key(self):
+        base = {'items': [{'product_id': 1, 'quantity': 1}],
+            'customer': {'name': 'Buyer', 'phone': '0900000000', 'address': 'Test'}}
+        for body in (dict(base, customer={'name': 123}), dict(base, customer={'address': 'x' * 1001}),
+                     dict(base, payment_method='unknown'), dict(base, payment_method=123),
+                     dict(base, idempotency_key=123), dict(base, idempotency_key='x' * 121),
+                     dict(base, clear_cart_item_ids=[True]),
+                     dict(base, items=[{'product_id': 2147483648, 'quantity': 1}])):
+            self.assertEqual(self.client.post('/api/orders', headers=self.headers, json=body).status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
+    def test_checkout_total_overflow_does_not_mutate_stock(self):
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).price = 4611686018427387904
+            backend.db.session.commit()
+        response = self.order(headers=dict(self.headers, **{'Idempotency-Key': 'overflow-test'}))
+        self.assertEqual(response.status_code, 400, response.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.OrderIdempotency.query.count(), 0)
+            self.assertEqual(backend.Order.query.count(), 0)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
 
 if __name__ == '__main__':
     unittest.main()

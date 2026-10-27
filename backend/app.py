@@ -415,7 +415,7 @@ def _positive_int(value):
     if isinstance(value, bool) or not isinstance(value, (int, str)):
         raise ValueError('Expected a positive integer')
     result = int(value)
-    if result < 1:
+    if not 1 <= result <= 2147483647:
         raise ValueError('Expected a positive integer')
     return result
 
@@ -1505,10 +1505,10 @@ def create_order():
     clear_cart_item_ids = data.get('clear_cart_item_ids')
     clear_cart_ids = None
     if clear_cart_item_ids is not None:
-        if not isinstance(clear_cart_item_ids, list):
+        if not isinstance(clear_cart_item_ids, list) or len(clear_cart_item_ids) > 100:
             return jsonify({"msg": "clear_cart_item_ids không hợp lệ"}), 400
         try:
-            clear_cart_ids = sorted({int(x) for x in clear_cart_item_ids if int(x) > 0})
+            clear_cart_ids = sorted({_positive_int(x) for x in clear_cart_item_ids})
         except Exception:
             return jsonify({"msg": "clear_cart_item_ids không hợp lệ"}), 400
     if not items:
@@ -1517,7 +1517,7 @@ def create_order():
         if not cart_items:
             return jsonify({"msg": "Giỏ hàng trống"}), 400
         items = [{"product_id": ci.product_id, "quantity": ci.quantity} for ci in cart_items]
-    if not isinstance(items, list) or len(items) == 0:
+    if not isinstance(items, list) or not 1 <= len(items) <= 100:
         return jsonify({"msg": "items không hợp lệ"}), 400
     qty_map = {}
     try:
@@ -1526,22 +1526,32 @@ def create_order():
             qty = _positive_int(it.get('quantity', 0))
             if pid <= 0 or qty <= 0:
                 return jsonify({"msg": "product_id/quantity không hợp lệ"}), 400
-            qty_map[pid] = qty_map.get(pid, 0) + qty
+            qty_map[pid] = _positive_int(qty_map.get(pid, 0) + qty)
     except Exception:
         return jsonify({"msg": "Dữ liệu items không hợp lệ"}), 400
-    customer_name = (customer.get('name') or user.username or '').strip()
-    customer_phone = (customer.get('phone') or user.phone or '').strip()
-    customer_address = (customer.get('address') or user.address or '').strip()
-    customer_email = (customer.get('email') or '').strip()
+    try:
+        customer = _validated_text_fields(customer, {'name': 120, 'phone': 20, 'address': 1000, 'email': 120},
+                                           single_line=('name', 'phone', 'email'))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    customer_name = customer['name'] or user.username or ''
+    customer_phone = customer['phone'] or user.phone or ''
+    customer_address = customer['address'] or user.address or ''
+    customer_email = customer['email']
     if not customer_name or not customer_phone or not customer_address:
         return jsonify({"msg": "Thiếu thông tin khách hàng (name/phone/address)!"}), 400
     if customer_email and not _is_valid_email(customer_email):
         return jsonify({"msg": "Định dạng Email không hợp lệ!"}), 400
     payment_method = (data.get('payment_method') or data.get('provider') or 'cod')
-    payment_method = str(payment_method or '').strip().lower()
+    if not isinstance(payment_method, str):
+        return jsonify({'msg': 'Phương thức thanh toán không hợp lệ'}), 400
+    payment_method = payment_method.strip().lower()
     if payment_method not in ('cod', 'payos'):
-        payment_method = 'cod'
-    idem_key = ((data.get('idempotency_key') if isinstance(data, dict) else None) or request.headers.get('Idempotency-Key') or '').strip()
+        return jsonify({'msg': 'Phương thức thanh toán không được hỗ trợ'}), 400
+    raw_key = data.get('idempotency_key', request.headers.get('Idempotency-Key', ''))
+    if not isinstance(raw_key, str) or len(raw_key) > 120 or '\r' in raw_key or '\n' in raw_key:
+        return jsonify({'msg': 'Khóa yêu cầu không hợp lệ'}), 400
+    idem_key = raw_key.strip()
     idem_hash = None
     if idem_key:
         idem_hash = _compute_order_request_hash(customer_name, customer_phone, customer_address, customer_email, qty_map, payment_method)
@@ -1584,9 +1594,11 @@ def create_order():
             p = prod_map[pid]
             if p.stock is not None and int(p.stock) < int(qty):
                 raise RuntimeError(f'out_of_stock:{pid}')
+        total_amount = sum(int(prod_map[pid].price) * qty for pid, qty in qty_map.items())
+        if not 0 <= total_amount <= 9223372036854775807:
+            raise RuntimeError('invalid_total')
         for pid, qty in qty_map.items():
             p = prod_map[pid]
-            total_amount += int(p.price) * int(qty)
             if p.stock is not None:
                 p.stock = int(p.stock) - int(qty)
         for _ in range(10):
@@ -1660,6 +1672,8 @@ def create_order():
     except RuntimeError as e:
         db.session.rollback()
         msg = str(e)
+        if msg == 'invalid_total':
+            return jsonify({'msg': 'Giá trị đơn hàng nằm ngoài phạm vi cho phép'}), 400
         if msg.startswith('out_of_stock:'):
             try:
                 pid = int(msg.split(':', 1)[1])
