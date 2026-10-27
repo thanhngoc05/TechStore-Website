@@ -346,7 +346,7 @@ app.config['REQUEST_RATE_LIMITS'] = {
     'forgot_password': (5, 60), 'reset_password': (10, 60),
     'public_contact': (10, 60), 'public_refund_request': (5, 60),
     'add_review': (30, 60), 'admin_review_refund': (30, 60),
-    'admin_retry_refund_notification': (5, 60),
+    'admin_retry_refund_notification': (5, 60), 'public_warranty_lookup': (15, 60),
 }
 
 
@@ -379,7 +379,8 @@ def protect_response_metadata(response):
 @app.before_request
 def enforce_request_rate_limit():
     rule = app.config['REQUEST_RATE_LIMITS'].get(request.endpoint)
-    if not app.config['RATE_LIMIT_ENABLED'] or not rule or request.method not in ('POST', 'PUT', 'DELETE'):
+    limited_method = request.method in ('POST', 'PUT', 'DELETE') or (request.endpoint == 'public_warranty_lookup' and request.method == 'GET')
+    if not app.config['RATE_LIMIT_ENABLED'] or not rule or not limited_method:
         return None
     limit, seconds = rule
     now = int(time.time())
@@ -2760,25 +2761,23 @@ def admin_warranty_list():
 
 @app.route('/api/public/warranty/lookup', methods=['GET'])
 def public_warranty_lookup():
-    code = (request.args.get('code') or '').strip()
-    serial = (request.args.get('serial') or '').strip()
-    phone = (request.args.get('phone') or '').strip()
-    q = WarrantyRecord.query
-    if code:
-        q = q.filter(WarrantyRecord.warranty_code == code)
-    elif serial:
-        q = q.filter(WarrantyRecord.serial_imei == serial)
-    elif phone:
-        q = q.filter(WarrantyRecord.phone == phone)
-    else:
-        return jsonify({"msg": "Thiếu tham số tra cứu"}), 400
-    rows = q.order_by(WarrantyRecord.updated_at.desc()).all()
-    return jsonify([{
-        "id": r.id, "warranty_code": r.warranty_code, "product_name": r.product_name,
-        "serial_imei": r.serial_imei, "customer_name": r.customer_name, "phone": r.phone,
-        "activated_at": _fmt_date(r.activated_at), "expired_at": _fmt_date(r.expired_at),
-        "status": r.status, "history": json.loads(r.history) if r.history else [],
-    } for r in rows]), 200
+    fields = {'phone': 25, 'identifier': 120, 'code': 80, 'serial': 120}
+    values = {name: (request.args.get(name) or '').strip() for name in fields}
+    if any(len(values[name]) > limit for name, limit in fields.items()):
+        return jsonify({'msg': 'Thông tin tra cứu quá dài'}), 400
+    if not values['phone'] or not any(values[name] for name in ('identifier', 'code', 'serial')):
+        return jsonify({'msg': 'Cần số điện thoại đăng ký và mã bảo hành hoặc Serial/IMEI'}), 400
+    query = WarrantyRecord.query.filter_by(phone=values['phone'])
+    if values['identifier']:
+        query = query.filter(or_(WarrantyRecord.warranty_code == values['identifier'], WarrantyRecord.serial_imei == values['identifier']))
+    if values['code']:
+        query = query.filter_by(warranty_code=values['code'])
+    if values['serial']:
+        query = query.filter_by(serial_imei=values['serial'])
+    rows = query.order_by(WarrantyRecord.updated_at.desc()).limit(20).all()
+    return jsonify([{'warranty_code': row.warranty_code, 'product_name': row.product_name,
+        'serial_imei': '****' + (row.serial_imei or '')[-4:], 'activated_at': _fmt_date(row.activated_at),
+        'expired_at': _fmt_date(row.expired_at), 'status': row.status, 'history': []} for row in rows]), 200
 
 @app.route('/admin/warranty', methods=['POST'])
 @jwt_required()

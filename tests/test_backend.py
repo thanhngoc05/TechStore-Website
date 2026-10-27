@@ -1244,6 +1244,23 @@ class BackendTests(unittest.TestCase):
         self.assertEqual(self.client.put(f'/admin/news/{article_id}', headers=self.headers,
             json={'summary': 'Partial update'}).status_code, 200)
 
+    def test_public_warranty_requires_two_factors_and_minimizes_personal_data(self):
+        with backend.app.app_context():
+            backend.db.session.add(backend.WarrantyRecord(warranty_code='WR-1', product_name='Laptop',
+                serial_imei='SERIAL123456', customer_name='Private Customer', phone='0900000000',
+                history=backend.json.dumps(['Internal private note'])))
+            backend.db.session.commit()
+        for query in ('phone=0900000000', 'serial=SERIAL123456', 'phone=0900000000&identifier=' + 'x' * 121):
+            self.assertEqual(self.client.get('/api/public/warranty/lookup?' + query).status_code, 400)
+        self.assertEqual(self.client.get('/api/public/warranty/lookup?phone=0999999999&serial=SERIAL123456').json, [])
+        response = self.client.get('/api/public/warranty/lookup?phone=0900000000&identifier=SERIAL123456')
+        self.assertEqual(response.status_code, 200)
+        record = response.json[0]
+        self.assertEqual(record['serial_imei'], '****3456')
+        self.assertNotIn('phone', record)
+        self.assertNotIn('customer_name', record)
+        self.assertEqual(record['history'], [])
+
 
 if __name__ == '__main__':
     unittest.main()
