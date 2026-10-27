@@ -1162,6 +1162,24 @@ class BackendTests(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_public_news_never_exposes_drafts_hidden_or_future_posts(self):
+        with backend.app.app_context():
+            now = backend.datetime.now()
+            for slug, status, schedule in [('live', 'published', None), ('draft', 'draft', None),
+                ('hidden', 'hidden', None), ('future', 'scheduled', now + backend.timedelta(days=1)),
+                ('due', 'scheduled', now - backend.timedelta(minutes=1)), ('unscheduled', 'scheduled', None)]:
+                backend.db.session.add(backend.NewsPost(title=slug, slug=slug, status=status,
+                    content='Test content', scheduled_at=schedule))
+            backend.db.session.commit()
+        for suffix in ('', '?status=published'):
+            response = self.client.get('/api/public/news' + suffix)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual({row['slug'] for row in response.json}, {'live', 'due'})
+        for status in ('draft', 'hidden', 'scheduled', 'unknown'):
+            self.assertEqual(self.client.get('/api/public/news?status=' + status).status_code, 400)
+        self.make_admin()
+        self.assertEqual(len(self.client.get('/admin/news', headers=self.headers).json), 6)
+
 
 if __name__ == '__main__':
     unittest.main()

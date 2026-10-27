@@ -43,7 +43,7 @@ from reportlab.lib.units import mm
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT, TA_LEFT
 
 from werkzeug.utils import secure_filename
-from sqlalchemy import inspect, func, select, case
+from sqlalchemy import inspect, func, select, case, and_, or_
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.dialects.mysql import insert as mysql_insert
 from sqlalchemy.exc import OperationalError, IntegrityError, InvalidRequestError, SQLAlchemyError
@@ -2572,21 +2572,18 @@ def create_banner():
 @app.route('/api/public/news', methods=['GET'])
 def public_news_list():
     status = (request.args.get('status') or '').strip().lower()
+    if status not in ('', 'published'):
+        return jsonify({'msg': 'Chỉ hỗ trợ xem tin đã xuất bản.'}), 400
     now = datetime.now()
-    q = NewsPost.query
-    if status in ('draft', 'published', 'scheduled', 'hidden'):
-        q = q.filter(NewsPost.status == status)
-    else:
-        q = q.filter(NewsPost.status.in_(['published', 'scheduled']))
+    q = NewsPost.query.filter(or_(NewsPost.status == 'published', and_(
+        NewsPost.status == 'scheduled', NewsPost.scheduled_at.is_not(None), NewsPost.scheduled_at <= now)))
     rows = q.order_by(NewsPost.updated_at.desc()).all()
     res = []
     for r in rows:
-        if r.status == 'scheduled' and r.scheduled_at and r.scheduled_at > now and not status:
-            continue
         res.append({
             "id": r.id, "title": r.title, "slug": r.slug, "summary": r.summary,
             "content": r.content, "thumbnail": r.thumbnail, "banner": r.banner,
-            "status": 'published' if (r.status == 'scheduled' and r.scheduled_at and r.scheduled_at <= now) else r.status,
+            "status": 'published',
             "scheduled_at": _fmt_dt(r.scheduled_at), "created_at": _fmt_dt(r.created_at),
             "updated_at": _fmt_dt(r.updated_at),
         })
