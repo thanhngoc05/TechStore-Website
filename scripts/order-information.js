@@ -453,29 +453,8 @@ function _getCheckoutTotalAmount() {
   return (viewItems || []).reduce((sum, it) => sum + (parseInt(it.subtotal || 0) || 0), 0);
 }
 
-async function _submitOrder(payload, token, idemKey) {
-  const res = await fetch(window.apiUrl("/api/orders"), {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, "Idempotency-Key": idemKey },
-    body: JSON.stringify(payload),
-  });
-  const data = await res.json().catch(() => ({}));
-  return { res, data };
-}
-
 async function _submitOrderWithIdempotencyRetry(build, forcePaymentMethod) {
-  const methodOverride = String(forcePaymentMethod || "").trim().toLowerCase();
-  const firstPayload = methodOverride ? { ...build.payload, payment_method: methodOverride, provider: methodOverride } : build.payload;
-  const first = await _submitOrder(firstPayload, build.token, build.idemKey);
-  if (first && first.res && first.res.ok) return first;
-  const msg = String((first && first.data && first.data.msg) || "").toLowerCase();
-  const isIdemConflict = (first && first.res && first.res.status === 409) || msg.includes("idempotency") || msg.includes("đang được tạo") || msg.includes("vui lòng chờ");
-  if (!isIdemConflict) return first;
-  clearOrderIdempotencyKey();
-  const retryBuild = _buildCreateOrderPayloadForCurrentSelection();
-  if (!retryBuild) return first;
-  const retryPayload = methodOverride ? { ...retryBuild.payload, payment_method: methodOverride, provider: methodOverride } : retryBuild.payload;
-  return await _submitOrder(retryPayload, retryBuild.token, retryBuild.idemKey);
+  return window.submitCheckoutRequest(build, forcePaymentMethod);
 }
 
 function _buildCreateOrderPayloadForCurrentSelection() {
@@ -546,14 +525,14 @@ async function _ensureOrderCreatedBeforePayment() {
       return false;
     }
 
-    clearOrderIdempotencyKey();
-    if (isCartMode) clearSelectedCartItemIds();
-
     const orderCode = String((data && data.order_code) || "").trim();
     if (!orderCode) {
       alert("Không nhận được mã đơn hàng từ server.");
       return false;
     }
+
+    clearOrderIdempotencyKey();
+    if (isCartMode) clearSelectedCartItemIds();
 
     try {
       localStorage.setItem("last_order_code", orderCode);
