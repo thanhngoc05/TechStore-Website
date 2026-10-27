@@ -1,3 +1,9 @@
+function escapeCartHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 function clearAuthAndGoLogin(message) {
   try {
     localStorage.removeItem("token");
@@ -201,19 +207,19 @@ function renderCart(items) {
     .map((it) => {
       const checked = selectedIds.has(parseInt(it.id || 0, 10));
       return `
-        <div class="cart-row" data-item-id="${it.id}">
+        <div class="cart-row" data-item-id="${escapeCartHtml(it.id)}">
           <div class="cart-select">
             <input class="cart-check" type="checkbox" ${checked ? "checked" : ""} aria-label="Chọn sản phẩm" />
           </div>
-          <img src="${it.img}" alt="${it.name}" />
+          <img src="${escapeCartHtml(it.img)}" alt="${escapeCartHtml(it.name)}" />
           <div class="cart-meta">
-            <div class="cart-name">${it.name}</div>
+            <div class="cart-name">${escapeCartHtml(it.name)}</div>
             <div class="cart-price">${fmtMoney(it.price)} • Tạm tính: ${fmtMoney(it.subtotal)}</div>
           </div>
           <div class="cart-actions">
             <div class="qty-stepper" aria-label="Số lượng">
               <button class="qty-btn" type="button" data-delta="-1" aria-label="Giảm số lượng">-</button>
-              <span class="qty-val" aria-live="polite">${it.quantity}</span>
+              <span class="qty-val" aria-live="polite">${escapeCartHtml(it.quantity)}</span>
               <button class="qty-btn" type="button" data-delta="1" aria-label="Tăng số lượng">+</button>
             </div>
             <button class="btn-del" type="button" title="Xóa sản phẩm">
