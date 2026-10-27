@@ -693,6 +693,48 @@ def _validated_news_input(data, existing=None):
     values.update(status=status, scheduled_at=scheduled)
     return values
 
+def _decoded_warranty_history(raw):
+    try:
+        value = json.loads(raw) if raw else []
+    except (TypeError, ValueError):
+        return []
+    return [item for item in value[:100] if isinstance(item, str)] if isinstance(value, list) else []
+
+
+def _validated_warranty_input(data, existing=None):
+    if not isinstance(data, dict):
+        raise ValueError('Dữ liệu bảo hành không hợp lệ')
+    fields = {'warranty_code': 80, 'product_name': 250, 'serial_imei': 120, 'customer_name': 120, 'phone': 25}
+    if existing:
+        fields = {name: limit for name, limit in fields.items() if name in data}
+    required = tuple(name for name in ('warranty_code', 'product_name', 'phone') if name in fields)
+    values = _validated_text_fields(data, fields, required=required, single_line=tuple(fields))
+    if 'phone' in values and not re.fullmatch(r'\+?[0-9][0-9 .()-]{5,24}', values['phone']):
+        raise ValueError('Số điện thoại bảo hành không hợp lệ')
+    status = data.get('status', existing.status if existing else 'active')
+    if status not in ('active', 'processing', 'expired'):
+        raise ValueError('Trạng thái bảo hành không hợp lệ')
+    values['status'] = status
+    for field in ('activated_at', 'expired_at'):
+        if field in data or not existing:
+            raw = data.get(field, '')
+            if not isinstance(raw, str):
+                raise ValueError('Ngày bảo hành không hợp lệ')
+            value = _parse_date(raw)
+            if raw.strip() and not value:
+                raise ValueError('Ngày bảo hành không hợp lệ')
+            values[field] = value
+    activated = values.get('activated_at', existing.activated_at if existing else None)
+    expired = values.get('expired_at', existing.expired_at if existing else None)
+    if activated and expired and expired < activated:
+        raise ValueError('Hạn bảo hành không thể trước ngày kích hoạt')
+    if 'history' in data or not existing:
+        history = data.get('history', [])
+        if not isinstance(history, list) or len(history) > 100 or any(not isinstance(item, str) or len(item) > 2000 for item in history):
+            raise ValueError('Lịch sử bảo hành phải là danh sách nội dung hợp lệ')
+        values['history'] = json.dumps([item.strip() for item in history if item.strip()], ensure_ascii=False)
+    return values
+
 def _fmt_dt(v):
     return v.strftime('%d/%m/%Y %H:%M:%S') if v else None
 
@@ -2755,7 +2797,7 @@ def admin_warranty_list():
         "id": r.id, "warranty_code": r.warranty_code, "product_name": r.product_name,
         "serial_imei": r.serial_imei, "customer_name": r.customer_name, "phone": r.phone,
         "activated_at": _fmt_date(r.activated_at), "expired_at": _fmt_date(r.expired_at),
-        "status": r.status, "history": json.loads(r.history) if r.history else [],
+        "status": r.status, "history": _decoded_warranty_history(r.history),
         "created_at": _fmt_dt(r.created_at), "updated_at": _fmt_dt(r.updated_at),
     } for r in rows]), 200
 
@@ -2785,26 +2827,13 @@ def admin_warranty_create():
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    code = (data.get('warranty_code') or '').strip()
-    product = (data.get('product_name') or '').strip()
-    phone = (data.get('phone') or '').strip()
-    if not code or not product or not phone:
-        return jsonify({"msg": "Thiếu warranty_code/product_name/phone"}), 400
-    if WarrantyRecord.query.filter_by(warranty_code=code).first():
-        return jsonify({"msg": "Mã bảo hành đã tồn tại"}), 400
-    status = (data.get('status') or 'active').strip().lower()
-    if status not in ('active', 'processing', 'expired'):
-        status = 'active'
-    history = data.get('history') or []
-    if not isinstance(history, list):
-        history = []
-    row = WarrantyRecord(
-        warranty_code=code, product_name=product, serial_imei=(data.get('serial_imei') or '').strip() or None,
-        customer_name=(data.get('customer_name') or '').strip() or None, phone=phone,
-        activated_at=_parse_date(data.get('activated_at') or ''), expired_at=_parse_date(data.get('expired_at') or ''),
-        status=status, history=json.dumps(history, ensure_ascii=False),
-    )
+    try:
+        values = _validated_warranty_input(request.get_json(silent=True))
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if WarrantyRecord.query.filter_by(warranty_code=values['warranty_code']).first():
+        return jsonify({'msg': 'Mã bảo hành đã tồn tại'}), 400
+    row = WarrantyRecord(**values)
     db.session.add(row)
     db.session.commit()
     return jsonify({"msg": "OK", "id": row.id}), 201
@@ -2818,36 +2847,15 @@ def admin_warranty_update(id):
     row = db.session.get(WarrantyRecord, id)
     if not row:
         return jsonify({"msg": "Hồ sơ bảo hành không tồn tại"}), 404
-    data = request.get_json() or {}
-    if 'warranty_code' in data:
-        code = (data.get('warranty_code') or '').strip()
-        if not code:
-            return jsonify({"msg": "warranty_code không hợp lệ"}), 400
-        dup = WarrantyRecord.query.filter(WarrantyRecord.warranty_code == code, WarrantyRecord.id != id).first()
-        if dup:
-            return jsonify({"msg": "Mã bảo hành đã tồn tại"}), 400
-        row.warranty_code = code
-    if 'product_name' in data:
-        row.product_name = (data.get('product_name') or '').strip() or row.product_name
-    if 'serial_imei' in data:
-        row.serial_imei = (data.get('serial_imei') or '').strip() or None
-    if 'customer_name' in data:
-        row.customer_name = (data.get('customer_name') or '').strip() or None
-    if 'phone' in data:
-        row.phone = (data.get('phone') or '').strip() or row.phone
-    if 'activated_at' in data:
-        row.activated_at = _parse_date(data.get('activated_at') or '')
-    if 'expired_at' in data:
-        row.expired_at = _parse_date(data.get('expired_at') or '')
-    if 'status' in data:
-        status = (data.get('status') or '').strip().lower()
-        if status in ('active', 'processing', 'expired'):
-            row.status = status
-    if 'history' in data:
-        history = data.get('history') or []
-        if not isinstance(history, list):
-            history = []
-        row.history = json.dumps(history, ensure_ascii=False)
+    try:
+        values = _validated_warranty_input(request.get_json(silent=True), row)
+    except ValueError as error:
+        return jsonify({'msg': str(error)}), 400
+    if 'warranty_code' in values and WarrantyRecord.query.filter(
+            WarrantyRecord.warranty_code == values['warranty_code'], WarrantyRecord.id != id).first():
+        return jsonify({'msg': 'Mã bảo hành đã tồn tại'}), 400
+    for name, value in values.items():
+        setattr(row, name, value)
     row.updated_at = datetime.now()
     db.session.commit()
     return jsonify({"msg": "OK"}), 200

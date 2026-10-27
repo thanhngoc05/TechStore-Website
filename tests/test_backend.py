@@ -1261,6 +1261,34 @@ class BackendTests(unittest.TestCase):
         self.assertNotIn('customer_name', record)
         self.assertEqual(record['history'], [])
 
+    def test_warranty_editor_validates_dates_and_preserves_partial_updates(self):
+        self.make_admin()
+        base = {'warranty_code': 'WR-1', 'product_name': 'Laptop', 'phone': '0900000000',
+                'activated_at': '2026-01-01', 'expired_at': '2027-01-01', 'history': ['Checked']}
+        for body in ([], {}, dict(base, expired_at='2025-01-01'), dict(base, activated_at='bad'),
+                     dict(base, history=[{}]), dict(base, phone='invalid'), dict(base, status='unknown')):
+            self.assertEqual(self.client.post('/admin/warranty', headers=self.headers, json=body).status_code, 400)
+        response = self.client.post('/admin/warranty', headers=self.headers, json=base)
+        self.assertEqual(response.status_code, 201, response.json)
+        record_id = response.json['id']
+        response = self.client.put(f'/admin/warranty/{record_id}', headers=self.headers,
+                                  json={'product_name': 'Changed', 'expired_at': '2020-01-01'})
+        self.assertEqual(response.status_code, 400)
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.WarrantyRecord, record_id).product_name, 'Laptop')
+        self.assertEqual(self.client.put(f'/admin/warranty/{record_id}', headers=self.headers,
+                                        json={'status': 'processing'}).status_code, 200)
+
+    def test_warranty_editor_tolerates_invalid_legacy_history(self):
+        self.make_admin()
+        with backend.app.app_context():
+            backend.db.session.add(backend.WarrantyRecord(warranty_code='OLD', product_name='Laptop',
+                                                          phone='0900000000', history='{broken'))
+            backend.db.session.commit()
+        response = self.client.get('/api/warranty', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json[0]['history'], [])
+
 
 if __name__ == '__main__':
     unittest.main()
