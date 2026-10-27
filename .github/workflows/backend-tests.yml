@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs tests/admin-refunds.test.cjs tests/customer-refunds.test.cjs tests/checkout-request.test.cjs tests/warranty-lookup.test.cjs tests/cart.test.cjs
+      - run: node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs tests/admin-refunds.test.cjs tests/customer-refunds.test.cjs tests/checkout-request.test.cjs tests/warranty-lookup.test.cjs tests/cart.test.cjs tests/checkout-rendering.test.cjs
 
   mysql-test:
     runs-on: ubuntu-latest

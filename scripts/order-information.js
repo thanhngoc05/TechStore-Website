@@ -1,4 +1,10 @@
 // order-information.js - Tích hợp PayOS, không còn MoMo
+function escapeCheckoutHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+
 let currentStep = 1;
 let foundProduct = null;
 let orderData = { customer: {}, product: {}, orderDate: "" };
@@ -259,8 +265,8 @@ function renderCartUI() {
     const qty = _getBuyNowQuantity();
     const total = unit * qty;
     list.innerHTML = `<div class="cart-row" style="display:flex; gap:10px; align-items:center; border:1px solid #eee; border-radius:10px; padding:10px;">
-      <img src="${foundProduct.img}" alt="${foundProduct.name}" style="width:60px; height:60px; object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
-      <div style="flex:1;"><div style="font-weight:600; color:#333;">${foundProduct.name}</div><div style="font-size:12px; color:#666;">${unit.toLocaleString("vi-VN")}đ</div></div>
+      <img src="${escapeCheckoutHtml(foundProduct.img)}" alt="${escapeCheckoutHtml(foundProduct.name)}" style="width:60px; height:60px; object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
+      <div style="flex:1;"><div style="font-weight:600; color:#333;">${escapeCheckoutHtml(foundProduct.name)}</div><div style="font-size:12px; color:#666;">${unit.toLocaleString("vi-VN")}đ</div></div>
       <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end;">
         <div class="qty-stepper" style="display:inline-flex; align-items:center; border:1px solid #ddd; border-radius:10px; overflow:hidden; background:#fff;">
           <button class="buy-now-qty-btn" type="button" data-delta="-1" style="width:32px; height:32px; border:none; background:#fff; cursor:pointer; font-weight:900; font-size:16px;">-</button>
@@ -303,13 +309,13 @@ function renderCartUI() {
   totalEl.textContent = "Tổng: " + total.toLocaleString("vi-VN") + "đ";
   totalEl.classList.add("price-red");
   list.innerHTML = viewItems.map(it => `
-    <div class="cart-row" data-item-id="${it.id}" style="display:flex; gap:10px; align-items:center; border:1px solid #eee; border-radius:10px; padding:10px;">
-      <img src="${it.img}" alt="${it.name}" style="width:60px; height:60px; object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
-      <div style="flex:1;"><div style="font-weight:600; color:#333;">${it.name}</div><div style="font-size:12px; color:#666;">${(parseInt(it.price || 0) || 0).toLocaleString("vi-VN")}đ</div></div>
+    <div class="cart-row" data-item-id="${escapeCheckoutHtml(it.id)}" style="display:flex; gap:10px; align-items:center; border:1px solid #eee; border-radius:10px; padding:10px;">
+      <img src="${escapeCheckoutHtml(it.img)}" alt="${escapeCheckoutHtml(it.name)}" style="width:60px; height:60px; object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
+      <div style="flex:1;"><div style="font-weight:600; color:#333;">${escapeCheckoutHtml(it.name)}</div><div style="font-size:12px; color:#666;">${(parseInt(it.price || 0) || 0).toLocaleString("vi-VN")}đ</div></div>
       <div style="display:flex; align-items:center; gap:10px; justify-content:flex-end;">
         <div class="qty-stepper" style="display:inline-flex; align-items:center; border:1px solid #ddd; border-radius:10px; overflow:hidden; background:#fff;">
           <button class="cart-qty-btn" type="button" data-delta="-1" style="width:32px; height:32px; border:none; background:#fff; cursor:pointer; font-weight:900; font-size:16px;">-</button>
-          <span class="cart-qty-val" style="min-width:28px; text-align:center; font-weight:800; font-size:13px; padding:0 10px;">${it.quantity}</span>
+          <span class="cart-qty-val" style="min-width:28px; text-align:center; font-weight:800; font-size:13px; padding:0 10px;">${escapeCheckoutHtml(it.quantity)}</span>
           <button class="cart-qty-btn" type="button" data-delta="1" style="width:32px; height:32px; border:none; background:#fff; cursor:pointer; font-weight:900; font-size:16px;">+</button>
         </div>
         <button class="cart-del" type="button" style="display:inline-flex; align-items:center; gap:6px; background:#fff; border:1px solid #f3b6bd; color:#d70018; cursor:pointer; font-size:12px; font-weight:700; padding:6px 10px; border-radius:10px;"><i class="fas fa-trash"></i><span>Xóa</span></button>
@@ -751,9 +757,9 @@ function renderFinalOrder() {
   let effectiveOrderCode = _getCheckoutOrderCode();
   if (!effectiveOrderCode) effectiveOrderCode = String(localStorage.getItem("last_order_code") || "").trim();
   if (effectiveOrderCode) _setCheckoutOrderCode(effectiveOrderCode);
-  const orderCodeLine = effectiveOrderCode ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-receipt"></i> Mã đơn: <b>${effectiveOrderCode}</b></p>` : "";
+  const orderCodeLine = effectiveOrderCode ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-receipt"></i> Mã đơn: <b>${escapeCheckoutHtml(effectiveOrderCode)}</b></p>` : "";
   const paymentText = getPaymentMethodText(selectedPaymentMethod);
-  const paymentLine = paymentText ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-credit-card"></i> ${paymentText}</p>` : "";
+  const paymentLine = paymentText ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-credit-card"></i> ${escapeCheckoutHtml(paymentText)}</p>` : "";
   if (effectiveOrderCode && !finalOrderDetailCache) {
     _fetchFinalOrderDetailIfPossible().then(() => {
       const step3 = document.getElementById("step-3");
@@ -773,7 +779,7 @@ function renderFinalOrder() {
       if (provider === "payos") payText = "Thanh toán qua PayOS";
       else if (provider === "cod") payText = "Thanh toán khi nhận hàng (COD)";
     } catch {}
-    const payLine2 = payText ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-credit-card"></i> ${payText}</p>` : "";
+    const payLine2 = payText ? `<p style="font-size:12px; margin:6px 0 0;"><i class="fas fa-credit-card"></i> ${escapeCheckoutHtml(payText)}</p>` : "";
     const itemsHtml = items.map(it => {
       const name = it.product_name || it.name || "Sản phẩm";
       const img = it.img || "../assets/img/LOGO1.png";
@@ -781,12 +787,12 @@ function renderFinalOrder() {
       const unit = parseInt(it.price || 0, 10) || 0;
       const sub = parseInt(it.subtotal || unit * qty || 0, 10) || 0;
       return `<div style="display:flex; gap:10px; align-items:center; padding:10px; border:1px solid #eee; border-radius:10px; margin-top:10px;">
-        <img src="${img}" width="60" height="60" style="object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
-        <div style="flex:1;"><div style="font-weight:600; color:#333;">${name}</div><div style="font-size:12px; color:#666;">SL: ${qty} • ${unit.toLocaleString("vi-VN")}đ</div></div>
+        <img src="${escapeCheckoutHtml(img)}" width="60" height="60" style="object-fit:contain; border-radius:8px; border:1px solid #f1f1f1; background:#fff;" />
+        <div style="flex:1;"><div style="font-weight:600; color:#333;">${escapeCheckoutHtml(name)}</div><div style="font-size:12px; color:#666;">SL: ${qty} • ${unit.toLocaleString("vi-VN")}đ</div></div>
         <div style="font-weight:700; color:#d70018;">${sub.toLocaleString("vi-VN")}đ</div>
       </div>`;
     }).join("");
-    summaryBox.innerHTML = `<div style="padding:10px;"><p style="margin:0; font-size:12px;"><i class="far fa-calendar-alt"></i> ${created}</p>${orderCodeLine}${payLine2}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p style="margin:0 0 6px;"><b>${customer.name || ""}</b></p><p style="margin:0; font-size:11px; color:#666;">${customer.address || ""}</p>${itemsHtml}<div class="price-red" style="margin-top:12px; font-weight:800;">Tổng: ${totalAmount.toLocaleString("vi-VN")}đ</div></div>`;
+    summaryBox.innerHTML = `<div style="padding:10px;"><p style="margin:0; font-size:12px;"><i class="far fa-calendar-alt"></i> ${escapeCheckoutHtml(created)}</p>${orderCodeLine}${payLine2}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p style="margin:0 0 6px;"><b>${escapeCheckoutHtml(customer.name || "")}</b></p><p style="margin:0; font-size:11px; color:#666;">${escapeCheckoutHtml(customer.address || "")}</p>${itemsHtml}<div class="price-red" style="margin-top:12px; font-weight:800;">Tổng: ${totalAmount.toLocaleString("vi-VN")}đ</div></div>`;
     return;
   }
   if (!isCartMode) {
@@ -802,7 +808,7 @@ function renderFinalOrder() {
       return;
     }
     const productImg = (foundProduct && foundProduct.img) || (displayImg && displayImg.src) || "";
-    summaryBox.innerHTML = `<div class="summary-item" style="padding: 10px;"><div style="width:80px; height:80px; display:flex; justify-content:center; align-items:center; background:#fff; border:1px solid #eee; border-radius:12px; flex-shrink:0;"><img src="${productImg}" style="width:65px; height:65px; object-fit:contain;"></div><div class="summary-info" style="margin-left: 20px;"><h4 style="margin:0; color:#333;">${foundProduct ? foundProduct.name : "Sản phẩm"}</h4><p class="price-red" style="margin-bottom:4px;">${foundProduct && foundProduct.price != null ? (parseInt(foundProduct.price, 10) || 0).toLocaleString("vi-VN") : "Liên hệ"}đ x ${_getBuyNowQuantity()}</p><p style="font-size:11px; color:#888;"><i class="far fa-calendar-alt"></i> ${now.toLocaleString("vi-VN")}</p>${orderCodeLine}${paymentLine}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p><b>${orderData.customer.name}</b></p><p style="font-size:11px; color:#666;">${orderData.customer.address}</p></div></div>`;
+    summaryBox.innerHTML = `<div class="summary-item" style="padding: 10px;"><div style="width:80px; height:80px; display:flex; justify-content:center; align-items:center; background:#fff; border:1px solid #eee; border-radius:12px; flex-shrink:0;"><img src="${escapeCheckoutHtml(productImg)}" style="width:65px; height:65px; object-fit:contain;"></div><div class="summary-info" style="margin-left: 20px;"><h4 style="margin:0; color:#333;">${escapeCheckoutHtml(foundProduct ? foundProduct.name : "Sản phẩm")}</h4><p class="price-red" style="margin-bottom:4px;">${foundProduct && foundProduct.price != null ? (parseInt(foundProduct.price, 10) || 0).toLocaleString("vi-VN") : "Liên hệ"}đ x ${_getBuyNowQuantity()}</p><p style="font-size:11px; color:#888;"><i class="far fa-calendar-alt"></i> ${now.toLocaleString("vi-VN")}</p>${orderCodeLine}${paymentLine}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p><b>${escapeCheckoutHtml(orderData.customer.name)}</b></p><p style="font-size:11px; color:#666;">${escapeCheckoutHtml(orderData.customer.address)}</p></div></div>`;
     return;
   }
   const selectedIds = new Set(getSelectedCartItemIds());
@@ -821,12 +827,12 @@ function renderFinalOrder() {
         const tx = offset * 30;
         style += `transform: translateX(${tx}px) rotate(${rotate}deg);`;
       }
-      stackHtml += `<img src="${src}" style="${style}">`;
+      stackHtml += `<img src="${escapeCheckoutHtml(src)}" style="${style}">`;
     });
     stackHtml += `</div>`;
   }
-  const itemsHtml = (viewItems || []).map(it => `<div style="display:flex; justify-content:space-between; font-size:12px; padding:4px 0; border-bottom:1px solid #f9f9f9;"><span style="color:#555; flex:1; padding-right:10px;">${it.name} <span style="color:#999;">x${it.quantity}</span></span><span style="font-weight:600;">${(parseInt(it.subtotal || 0) || 0).toLocaleString("vi-VN")}đ</span></div>`).join("");
-  summaryBox.innerHTML = `<div style="padding:10px;">${stackHtml}<p style="margin:0; font-size:12px;"><i class="far fa-calendar-alt"></i> ${now.toLocaleString("vi-VN")}</p>${orderCodeLine}${paymentLine}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p style="margin:0 0 6px;"><b>${orderData.customer.name}</b></p><p style="margin:0; font-size:11px; color:#666;">${orderData.customer.address}</p>${itemsHtml}<div class="price-red" style="margin-top:12px; font-weight:800;">Tổng: ${total.toLocaleString("vi-VN")}đ</div></div>`;
+  const itemsHtml = (viewItems || []).map(it => `<div style="display:flex; justify-content:space-between; font-size:12px; padding:4px 0; border-bottom:1px solid #f9f9f9;"><span style="color:#555; flex:1; padding-right:10px;">${escapeCheckoutHtml(it.name)} <span style="color:#999;">x${escapeCheckoutHtml(it.quantity)}</span></span><span style="font-weight:600;">${(parseInt(it.subtotal || 0) || 0).toLocaleString("vi-VN")}đ</span></div>`).join("");
+  summaryBox.innerHTML = `<div style="padding:10px;">${stackHtml}<p style="margin:0; font-size:12px;"><i class="far fa-calendar-alt"></i> ${now.toLocaleString("vi-VN")}</p>${orderCodeLine}${paymentLine}<hr style="border:0; border-top:1px dashed #ddd; margin:10px 0;"><p style="margin:0 0 6px;"><b>${escapeCheckoutHtml(orderData.customer.name)}</b></p><p style="margin:0; font-size:11px; color:#666;">${escapeCheckoutHtml(orderData.customer.address)}</p>${itemsHtml}<div class="price-red" style="margin-top:12px; font-weight:800;">Tổng: ${total.toLocaleString("vi-VN")}đ</div></div>`;
 }
 
 // Khởi tạo khi DOM loaded
