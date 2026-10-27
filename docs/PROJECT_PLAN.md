@@ -9,7 +9,8 @@
 - Expiring password-reset links, session invalidation and deletion integrity: PR #14, merged into main.
 - Durable refund request queue, review/audit workflow, customer tracking and reset-token retention tooling: PR #15, merged into main.
 - Shared request limits, delivery retries, readiness/schema preflight and a validated WSGI entrypoint: PR #16, merged into main.
-- Current follow-up: public news privacy, checkout retry safety, editor/order validation, private warranty lookup, explicit trusted proxy settings and Chromium smoke tests.
+- Public news privacy, checkout retry safety, editor/order validation, private warranty lookup, explicit trusted proxy settings and Chromium smoke tests: PR #17, merged into main.
+- Complete COD purchase/cancellation browser verification: published directly to main in commit 7203db8.
 
 ## Verification completed locally
 
@@ -61,3 +62,6 @@
 - Waitress trusts forwarded client/protocol headers only from an explicitly configured proxy IP. Middleware tests cover both trusted and spoofed remote peers.
 - Browser tests run in GitHub Actions with Chromium, use a separate SQLite database under instance/browser-tests and never reuse a running application server. They do not contact SMTP or payOS.
 - The COD browser scenario fills shipping fields, verifies one order with the expected customer/items/total and checks cancellation through the order-detail page. Address options use an isolated fixture rather than the external location service.
+- Cart and checkout rendering escapes product, image and customer fields in both provisional and server-confirmed summaries.
+- Shipping cannot advance while locations are loading, with incomplete district/ward selections, a missing street address or an invalid phone. Manual address entry remains available when location loading fails.
+- Partial-cart browser coverage changes the selected quantity, checks the exact order payload/total and confirms that the unselected item remains in the cart after payment setup.

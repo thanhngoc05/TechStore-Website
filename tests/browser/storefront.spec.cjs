@@ -192,3 +192,69 @@ test('shipping validation keeps incomplete addresses and invalid phones out of c
   await expect(page.locator('#step-2')).toBeVisible();
   expect(submittedOrders).toHaveLength(0);
 });
+
+test('partial cart checkout buys only selected quantities and preserves the other item', async ({ page, request }) => {
+  const token = await createUser(request);
+  const headers = { Authorization: `Bearer ${token}` };
+  const catalog = await request.get('/api/public/products');
+  expect(catalog.ok()).toBeTruthy();
+  const products = Object.values(await catalog.json()).flat().filter(item => item.price > 0).slice(0, 2);
+  expect(products).toHaveLength(2);
+  for (const product of products) {
+    const added = await request.post('/api/cart', { headers, data: { product_id: product.id, quantity: 1 } });
+    expect(added.status()).toBe(201);
+  }
+  const cartResponse = await request.get('/api/cart', { headers });
+  expect(cartResponse.ok()).toBeTruthy();
+  const items = await cartResponse.json();
+  const selected = items.find(item => item.product_id === products[0].id);
+  const unselected = items.find(item => item.product_id === products[1].id);
+  await authenticate(page, token);
+  await page.goto('/cart.html');
+  await expect(page.locator('#cartList .cart-row')).toHaveCount(2);
+  await expect(page.locator('#checkoutBtn')).toBeDisabled();
+  const row = page.locator(`#cartList .cart-row[data-item-id="${selected.id}"]`);
+  await row.locator('.cart-check').check();
+  await row.locator('.qty-btn[data-delta="1"]').click();
+  await expect(row.locator('.qty-val')).toHaveText('2');
+  await expect(page.locator('#cartTotal')).toHaveText(`Tổng: ${(selected.price * 2).toLocaleString('vi-VN')}đ`);
+  await page.locator('#checkoutBtn').click();
+  await expect(page).toHaveURL(/order-information\.html\?cart=1$/);
+  await expect(page.locator('#cart-items .cart-row')).toHaveCount(1);
+  await expect(page.locator('#cart-items')).toContainText(selected.name);
+  await expect(page.locator('#cart-items')).not.toContainText(unselected.name);
+  await expect(page.locator('#province')).toBeEnabled();
+  await page.locator('#customerName').fill('Partial Cart Customer');
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#customerEmail').fill('partial-cart@example.com');
+  await page.locator('#province').selectOption('Test Province');
+  await page.locator('#district').selectOption('Test District');
+  await page.locator('#ward').selectOption('Test Ward');
+  await page.locator('#detailAddress').fill('42 Test Street');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+  await page.locator('#paymentMethod').selectOption('cod');
+  const createdResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders');
+  await page.locator('#mainNextBtn').click();
+  const created = await createdResponse;
+  expect(created.status()).toBe(201);
+  const payload = created.request().postDataJSON();
+  expect(payload.items).toEqual([{ product_id: selected.product_id, quantity: 2 }]);
+  expect(payload.clear_cart_item_ids).toEqual([selected.id]);
+  expect(payload.clear_cart).not.toBe(true);
+  const { order_code: code } = await created.json();
+  await expect(page.locator('#order-summary-card')).toContainText(code);
+  await expect(page.locator('#order-summary-card')).not.toContainText(unselected.name);
+  const detail = await request.get(`/api/orders/${encodeURIComponent(code)}`, { headers });
+  expect(detail.ok()).toBeTruthy();
+  expect(await detail.json()).toMatchObject({ total_amount: selected.price * 2,
+    items: [{ product_id: selected.product_id, quantity: 2, price: selected.price }] });
+  const remaining = await request.get('/api/cart', { headers });
+  expect(remaining.ok()).toBeTruthy();
+  expect(await remaining.json()).toEqual([expect.objectContaining({ id: unselected.id, quantity: 1 })]);
+  await page.goto('/cart.html');
+  await expect(page.locator('#cartList .cart-row')).toHaveCount(1);
+  await expect(page.locator('#cartList')).toContainText(unselected.name);
+  await expect(page.locator('#checkoutBtn')).toBeDisabled();
+});
