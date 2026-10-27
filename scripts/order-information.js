@@ -686,19 +686,35 @@ async function handleNext() {
     name = String(nameEl?.value || "").trim();
     phone = String(phoneEl?.value || "").trim();
     email = String(emailEl?.value || "").trim();
+    if (provinceSelect?.disabled || districtSelect?.disabled || wardSelect?.disabled) {
+      alert("Đang tải danh sách địa chỉ. Vui lòng chờ trong giây lát.");
+      return;
+    }
     const hasProvinceOptions = !!provinceSelect && provinceSelect.options && provinceSelect.options.length > 1;
     if (!name || !phone || (hasProvinceOptions && !provinceSelect.value)) {
       alert("Vui lòng điền đầy đủ thông tin!");
       return;
     }
     if (email && !isValidEmail(email)) { alert("Định dạng Email không hợp lệ!"); return; }
+    if (name.length > 120 || phone.length > 20 || !/^\+?[0-9][0-9 .()-]{5,19}$/.test(phone)) {
+      alert("Vui lòng nhập họ tên tối đa 120 ký tự và số điện thoại hợp lệ (6–20 ký tự).");
+      return;
+    }
     const detail = (document.getElementById("detailAddress")?.value || "").trim();
     const ward = (wardSelect?.value || "").trim();
     const district = (districtSelect?.value || "").trim();
     const province = (provinceSelect?.value || "").trim();
+    if (hasProvinceOptions && (!district || !ward)) {
+      alert("Vui lòng chọn đầy đủ Quận/Huyện và Phường/Xã.");
+      return;
+    }
+    if (!detail) {
+      alert("Vui lòng nhập số nhà, tên đường trong địa chỉ giao hàng.");
+      return;
+    }
     const parts = [detail, ward, district, province].filter(x => x && x.length > 0);
     const fullAddress = parts.join(", ");
-    if (!fullAddress) { alert("Vui lòng nhập đầy đủ địa chỉ giao hàng."); return; }
+    if (fullAddress.length > 1000) { alert("Địa chỉ giao hàng tối đa 1000 ký tự."); return; }
     orderData.customer = { name, phone, address: fullAddress, email };
   }
   if (currentStep === 2 && isCartMode) {

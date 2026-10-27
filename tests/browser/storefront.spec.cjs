@@ -149,3 +149,46 @@ test('customer completes COD checkout once and cancels the order from its detail
   expect(await history.json()).toEqual([expect.objectContaining({ order_code: code, status: 'cancelled' })]);
   expect(submittedOrders).toHaveLength(1);
 });
+
+test('shipping validation keeps incomplete addresses and invalid phones out of checkout', async ({ page, request }) => {
+  await authenticate(page, await createUser(request));
+  const dialogs = [];
+  const submittedOrders = [];
+  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+  page.on('request', request => {
+    if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/orders') submittedOrders.push(request);
+  });
+  const catalog = await request.get('/api/public/products');
+  const product = Object.values(await catalog.json()).flat()[0];
+  await page.goto(`/order-information.html?id=${product.id}`);
+  await expect(page.locator('#province')).toBeEnabled();
+  await page.locator('#customerName').fill('Browser Customer');
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#customerEmail').fill('checkout@example.com');
+  await page.locator('#province').selectOption('Test Province');
+  await page.locator('#detailAddress').fill('42 Test Street');
+  await page.locator('#mainNextBtn').click();
+  await expect.poll(() => dialogs.length).toBe(1);
+  expect(dialogs[0]).toContain('Quận/Huyện và Phường/Xã');
+  await expect(page.locator('#step-1')).toBeVisible();
+
+  await page.locator('#district').selectOption('Test District');
+  await page.locator('#ward').selectOption('Test Ward');
+  await page.locator('#detailAddress').fill('   ');
+  await page.locator('#mainNextBtn').click();
+  await expect.poll(() => dialogs.length).toBe(2);
+  expect(dialogs[1]).toContain('số nhà, tên đường');
+  await expect(page.locator('#step-1')).toBeVisible();
+
+  await page.locator('#detailAddress').fill('42 Test Street');
+  await page.locator('#customerPhone').fill('not-a-phone');
+  await page.locator('#mainNextBtn').click();
+  await expect.poll(() => dialogs.length).toBe(3);
+  expect(dialogs[2]).toContain('số điện thoại hợp lệ');
+  await expect(page.locator('#step-1')).toBeVisible();
+  expect(submittedOrders).toHaveLength(0);
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+  expect(submittedOrders).toHaveLength(0);
+});
