@@ -506,24 +506,26 @@ async function _ensureOrderCreatedBeforePayment() {
   const token = requireLoginForBE2();
   if (!token) return false;
 
-  await _ensureCartItemsLoaded();
-  await _ensureBuyNowProductLoaded();
-
-  const build = _buildCreateOrderPayloadForCurrentSelection();
-  if (!build) {
-    alert("Không thể tạo đơn hàng. Vui lòng kiểm tra sản phẩm/giỏ hàng và thông tin giao hàng.");
-    return false;
-  }
-
   const nextBtn = document.getElementById("mainNextBtn");
+  const controls = [nextBtn, document.getElementById("paymentMethod"),
+    document.getElementById("payosRedirectBtn"), document.querySelector(".order-footer-btns .btn-prev")]
+    .filter(Boolean).map(element => ({ element, disabled: element.disabled }));
   const oldHtml = nextBtn ? nextBtn.innerHTML : "";
+  // Reserve submission before any asynchronous product/cart loading can yield.
   isSubmittingOrder = true;
+  controls.forEach(({ element }) => { element.disabled = true; });
   if (nextBtn) {
-    nextBtn.disabled = true;
     nextBtn.innerHTML = "Đang tạo đơn...";
   }
 
   try {
+    await _ensureCartItemsLoaded();
+    await _ensureBuyNowProductLoaded();
+    const build = _buildCreateOrderPayloadForCurrentSelection();
+    if (!build) {
+      alert("Không thể tạo đơn hàng. Vui lòng kiểm tra sản phẩm/giỏ hàng và thông tin giao hàng.");
+      return false;
+    }
     const { res, data } = await _submitOrderWithIdempotencyRetry(build);
     if (!res.ok) {
       const msg = data && data.msg ? String(data.msg) : "Không thể tạo đơn hàng";
@@ -551,8 +553,8 @@ async function _ensureOrderCreatedBeforePayment() {
     alert("Không thể kết nối đến server!");
     return false;
   } finally {
+    controls.forEach(({ element, disabled }) => { element.disabled = disabled; });
     if (nextBtn) {
-      nextBtn.disabled = false;
       nextBtn.innerHTML = oldHtml || nextBtn.innerHTML;
     }
     isSubmittingOrder = false;
@@ -660,6 +662,7 @@ function initPaymentUI() {
 
 // Điều hướng
 async function handleNext() {
+  if (isSubmittingOrder) return;
   if (currentStep === 1) {
     if (!isCartMode && buyNowDeleted) {
       alert("Bạn đã xóa sản phẩm khỏi đơn. Vui lòng chọn sản phẩm khác để tiếp tục.");
@@ -751,6 +754,7 @@ async function handleNext() {
 }
 
 function handlePrev() {
+  if (isSubmittingOrder) return;
   if (currentStep === 1) { window.history.back(); return; }
   toggleStep(currentStep, false);
   currentStep--;
