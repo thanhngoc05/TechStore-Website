@@ -252,6 +252,8 @@
                   />
                 </div>
                 <h3>Địa chỉ giao hàng</h3>
+                <p id="locationStatus" class="location-status" role="status" aria-live="polite"></p>
+                <button id="locationRetry" class="location-retry" type="button" hidden>Thử tải lại danh sách địa chỉ</button>
                 <div class="input-group-row">
                   <select id="province" class="form-control">
                     <option value="">Chọn Tỉnh/Thành</option>
@@ -264,9 +266,11 @@
                   </select>
                 </div>
                 <div class="address-detail">
+                  <label id="addressDetailLabel" for="detailAddress">Số nhà, tên đường</label>
                   <input
                     type="text"
                     id="detailAddress"
+                    aria-describedby="locationStatus"
                     placeholder="Số nhà, tên đường..."
                   />
                 </div>

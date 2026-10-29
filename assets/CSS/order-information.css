@@ -1,3 +1,23 @@
+.location-status {
+  margin: 8px 0;
+  color: #555;
+  font-size: 14px;
+}
+.location-retry {
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid #d70018;
+  border-radius: 6px;
+  background: #fff;
+  color: #a80013;
+  cursor: pointer;
+}
+.address-detail label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
 /* 1. LAYOUT CHUNG */
 .order-flow-container {
   background: #fff;

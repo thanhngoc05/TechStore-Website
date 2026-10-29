@@ -80,6 +80,7 @@ function clearOrderIdempotencyKey() { try { sessionStorage.removeItem(IDEM_KEY_S
 
 let locationsData = null;
 let locationsLoadFailed = false;
+let locationsLoading = false;
 
 const urlParams = new URLSearchParams(window.location.search);
 const orderProductId = parseInt(urlParams.get("id"));
@@ -369,6 +370,20 @@ function resetLocationSelects() {
   if (districtSelect) districtSelect.length = 1;
   if (wardSelect) wardSelect.length = 1;
 }
+function showLocationStatus(state) {
+  const status = document.getElementById("locationStatus");
+  const retry = document.getElementById("locationRetry");
+  const label = document.getElementById("addressDetailLabel");
+  const detail = document.getElementById("detailAddress");
+  const failed = state === "failed";
+  if (status) status.textContent = state === "loading" ? "Đang tải danh sách địa chỉ..." : failed
+    ? "Chưa tải được danh sách. Bạn có thể nhập địa chỉ đầy đủ bên dưới hoặc thử tải lại."
+    : "Chọn tỉnh/thành, quận/huyện và phường/xã, sau đó nhập số nhà, tên đường.";
+  if (retry) { retry.hidden = !failed; retry.disabled = state === "loading"; }
+  if (label) label.textContent = failed
+    ? "Địa chỉ đầy đủ (số nhà, đường, phường/xã, quận/huyện, tỉnh/thành)" : "Số nhà, tên đường";
+  if (detail) detail.placeholder = failed ? "Nhập đầy đủ địa chỉ giao hàng..." : "Số nhà, tên đường...";
+}
 async function fetchJsonWithTimeout(url, timeoutMs) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs || 8000);
@@ -395,15 +410,17 @@ function bindLocationEvents(data) {
   };
 }
 async function initLocationSelectors() {
-  if (!provinceSelect || !districtSelect || !wardSelect) return;
+  if (!provinceSelect || !districtSelect || !wardSelect || locationsLoading) return;
+  locationsLoading = true;
   locationsLoadFailed = false;
+  showLocationStatus("loading");
   setSelectLoadingState(true);
   resetLocationSelects();
   try {
     try {
       const directUrl = "https://provinces.open-api.vn/api/?depth=3";
       const data = await fetchJsonWithTimeout(directUrl, 8000);
-      if (!Array.isArray(data)) throw new Error("Dữ liệu locations không hợp lệ");
+      if (!Array.isArray(data) || !data.length) throw new Error("Dữ liệu locations không hợp lệ");
       locationsData = data;
       data.forEach(p => provinceSelect.add(new Option(p.name, p.name)));
       bindLocationEvents(data);
@@ -412,7 +429,7 @@ async function initLocationSelectors() {
     try {
       const proxyUrl = window.apiUrl("/api/public/locations?depth=3");
       const data = await fetchJsonWithTimeout(proxyUrl, 8000);
-      if (!Array.isArray(data)) throw new Error("Dữ liệu locations proxy không hợp lệ");
+      if (!Array.isArray(data) || !data.length) throw new Error("Dữ liệu locations proxy không hợp lệ");
       locationsData = data;
       data.forEach(p => provinceSelect.add(new Option(p.name, p.name)));
       bindLocationEvents(data);
@@ -420,11 +437,19 @@ async function initLocationSelectors() {
       console.error("Locations proxy fetch failed:", e);
       locationsData = null;
       locationsLoadFailed = true;
-      alert("Không tải được danh sách Tỉnh/Thành. Vui lòng kiểm tra mạng hoặc thử lại sau.");
+      resetLocationSelects();
     }
-  } finally { setSelectLoadingState(false); }
+  } finally {
+    locationsLoading = false;
+    setSelectLoadingState(locationsLoadFailed);
+    showLocationStatus(locationsLoadFailed ? "failed" : "ready");
+  }
 }
-document.addEventListener("DOMContentLoaded", () => { initLocationSelectors(); });
+document.addEventListener("DOMContentLoaded", () => {
+  const retry = document.getElementById("locationRetry");
+  if (retry) retry.addEventListener("click", () => initLocationSelectors());
+  initLocationSelectors();
+});
 
 function isValidEmail(email) {
   const v = String(email || "").trim();
@@ -689,7 +714,7 @@ async function handleNext() {
     name = String(nameEl?.value || "").trim();
     phone = String(phoneEl?.value || "").trim();
     email = String(emailEl?.value || "").trim();
-    if (provinceSelect?.disabled || districtSelect?.disabled || wardSelect?.disabled) {
+    if (locationsLoading) {
       alert("Đang tải danh sách địa chỉ. Vui lòng chờ trong giây lát.");
       return;
     }
