@@ -66,6 +66,10 @@ Tra cứu bảo hành yêu cầu cả số điện thoại và mã phiếu hoặ
 
 Khi tạo đơn gặp 409, 429 hoặc mất kết nối, giữ nguyên mã yêu cầu để lần thử lại không tạo đơn khác. Giao diện chỉ xóa mã sau khi nhận được mã đơn hợp lệ; không tự gửi lại bằng mã mới khi gặp xung đột. Backend kiểm tra thông tin khách, phương thức thanh toán, số lượng và tổng tiền trước khi trừ kho.
 
+Giao diện khóa thao tác gửi đơn trước khi bắt đầu tải sản phẩm/giỏ hàng, đồng thời khóa nút quay lại và phương thức thanh toán đến khi có kết quả. Sau lỗi, thử lại ngay trên trang hiện tại với thông tin giữ nguyên. Bài kiểm tra trình duyệt cố ý làm mất phản hồi sau khi database lưu thành công và xác nhận lần thử lại trả về đúng mã đơn cũ.
+
+Nếu dịch vụ danh sách địa chỉ lỗi, khách vẫn nhập được địa chỉ đầy đủ bằng tay. Nút tải lại chỉ khởi chạy một lần tải tại một thời điểm và giữ nguyên thông tin đã nhập; danh sách trống hoặc lỗi được chuyển sang hướng dẫn nhập tay. Đây là lựa chọn thay thế cho dịch vụ địa chỉ, không xác minh địa chỉ có giao hàng được hay không.
+
 ## Thông báo hoàn tiền bị lỗi
 
 Mở **Quản trị → Yêu cầu hoàn tiền**, chọn hồ sơ và xem trạng thái thông báo. Nút **Gửi lại thông báo hỗ trợ** chỉ gửi khi hồ sơ chưa có lần gửi thật thành công; email thử được phân biệt là `simulated`.

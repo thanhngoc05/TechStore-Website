@@ -65,3 +65,6 @@
 - Cart and checkout rendering escapes product, image and customer fields in both provisional and server-confirmed summaries.
 - Shipping cannot advance while locations are loading, with incomplete district/ward selections, a missing street address or an invalid phone. Manual address entry remains available when location loading fails.
 - Partial-cart browser coverage changes the selected quantity, checks the exact order payload/total and confirms that the unselected item remains in the cart after payment setup.
+- Submission is reserved before product/cart loading; payment and back controls stay disabled until it finishes, and failed attempts restore the previous controls and request key.
+- Location outages show manual full-address guidance and a retry button. Retry preserves entered customer/address fields and avoids concurrent loads or duplicate options.
+- Browser recovery tests drop a response after the real backend commits an order, then verify that retry returns the same order with the same request key. They also exercise manual shipping and recovery of the location selectors.

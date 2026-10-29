@@ -258,3 +258,97 @@ test('partial cart checkout buys only selected quantities and preserves the othe
   await expect(page.locator('#cartList')).toContainText(unselected.name);
   await expect(page.locator('#checkoutBtn')).toBeDisabled();
 });
+
+test('location outages allow manual shipping and retry preserves entered details', async ({ page, request }) => {
+  let recovered = false;
+  await page.route('**/api/public/locations?depth=3', route => route.fulfill(recovered
+    ? { json: [{ name: 'Test Province', districts: [{ name: 'Test District', wards: [{ name: 'Test Ward' }] }] }] }
+    : { status: 503, json: { msg: 'Test location outage' } }));
+  await authenticate(page, await createUser(request));
+  const catalog = await request.get('/api/public/products');
+  expect(catalog.ok()).toBeTruthy();
+  const product = Object.values(await catalog.json()).flat()[0];
+  await page.goto(`/order-information.html?id=${product.id}`);
+  await expect(page.locator('#locationStatus')).toContainText('nhập địa chỉ đầy đủ');
+  await expect(page.locator('#province')).toBeDisabled();
+  await expect(page.locator('#locationRetry')).toBeVisible();
+  await page.locator('#customerName').fill('Manual Address Customer');
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#detailAddress').fill('42 Test Street, Test Ward, Test District, Test Province');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+  await page.locator('.order-footer-btns .btn-prev').click();
+  recovered = true;
+  await page.locator('#locationRetry').click();
+  await expect(page.locator('#province')).toBeEnabled();
+  await expect(page.locator('#locationRetry')).toBeHidden();
+  await expect(page.locator('#province option')).toHaveCount(2);
+  await expect(page.locator('#customerName')).toHaveValue('Manual Address Customer');
+  await expect(page.locator('#detailAddress')).toHaveValue('42 Test Street, Test Ward, Test District, Test Province');
+  await page.locator('#province').selectOption('Test Province');
+  await page.locator('#district').selectOption('Test District');
+  await page.locator('#ward').selectOption('Test Ward');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+});
+
+test('retry after a lost order response reuses the saved order and request key', async ({ page, request }) => {
+  const token = await createUser(request);
+  const headers = { Authorization: `Bearer ${token}` };
+  await authenticate(page, token);
+  const catalog = await request.get('/api/public/products');
+  expect(catalog.ok()).toBeTruthy();
+  const product = Object.values(await catalog.json()).flat()[0];
+  await page.goto(`/order-information.html?id=${product.id}`);
+  await expect(page.locator('#province')).toBeEnabled();
+  await page.locator('#customerName').fill('Retry Customer');
+  await page.locator('#customerPhone').fill('0901234567');
+  await page.locator('#customerEmail').fill('retry@example.com');
+  await page.locator('#province').selectOption('Test Province');
+  await page.locator('#district').selectOption('Test District');
+  await page.locator('#ward').selectOption('Test Ward');
+  await page.locator('#detailAddress').fill('42 Test Street');
+  await page.locator('#mainNextBtn').click();
+  await expect(page.locator('#step-2')).toBeVisible();
+
+  let notifyStored, disconnect;
+  const stored = new Promise(resolve => { notifyStored = resolve; });
+  const allowDisconnect = new Promise(resolve => { disconnect = resolve; });
+  const attempts = [], dialogs = [];
+  page.on('dialog', async dialog => { dialogs.push(dialog.message()); await dialog.accept(); });
+  await page.route('**/api/orders', async route => {
+    if (route.request().method() !== 'POST') return route.continue();
+    attempts.push(route.request().postDataJSON());
+    if (attempts.length > 1) return route.continue();
+    const response = await route.fetch();
+    expect(response.status()).toBe(201);
+    notifyStored(await response.json());
+    await allowDisconnect;
+    // The DB committed successfully; only the browser's response is lost.
+    await route.abort('failed');
+  });
+  await page.locator('#mainNextBtn').click();
+  const original = await stored;
+  try {
+    await expect(page.locator('#mainNextBtn')).toBeDisabled();
+    await expect(page.locator('#paymentMethod')).toBeDisabled();
+    await expect(page.locator('.order-footer-btns .btn-prev')).toBeDisabled();
+  } finally { disconnect(); }
+  await expect.poll(() => dialogs.length).toBe(1);
+  await expect(page.locator('#mainNextBtn')).toBeEnabled();
+  await expect(page.locator('#step-2')).toBeVisible();
+  expect(await page.evaluate(() => sessionStorage.getItem('order_idempotency_key'))).toBe(attempts[0].idempotency_key);
+  const retriedResponse = page.waitForResponse(response =>
+    response.request().method() === 'POST' && new URL(response.url()).pathname === '/api/orders');
+  await page.locator('#mainNextBtn').click();
+  const retried = await retriedResponse;
+  expect(retried.status()).toBe(200);
+  expect(await retried.json()).toMatchObject({ order_code: original.order_code, idempotent: true });
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]).toEqual(attempts[0]);
+  await expect(page.locator('#step-3')).toBeVisible();
+  await expect(page.locator('#order-summary-card')).toContainText(original.order_code);
+  const history = await request.get('/api/orders/me', { headers });
+  expect(history.ok()).toBeTruthy();
+  expect(await history.json()).toEqual([expect.objectContaining({ order_code: original.order_code })]);
+});
