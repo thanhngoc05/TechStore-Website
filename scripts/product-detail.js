@@ -78,14 +78,30 @@ async function loadReviews(pid) {
   }
 }
 
+function sanitizeProductDescription(value) {
+  const description = String(value ?? '');
+  if (!window.DOMPurify || !window.DOMPurify.isSupported) return escapeReviewText(description);
+  return window.DOMPurify.sanitize(description, {
+    ALLOWED_TAGS: ['p', 'br', 'h2', 'h3', 'h4', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
+      'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'img'],
+    ALLOWED_ATTR: ['href', 'title', 'src', 'alt', 'width', 'height', 'colspan', 'rowspan'],
+    ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false,
+  });
+}
+
+function formatProductPrice(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount.toLocaleString('vi-VN') : '0';
+}
+
 // 4. Hàm đổ dữ liệu sản phẩm vào HTML
 function renderProductUI(product, categoryKey) {
   const breadcrumb = document.getElementById("dynamic-breadcrumb");
   if (breadcrumb) {
     breadcrumb.innerHTML = `
         <a href="index.html"><i class="fas fa-home"></i> Trang chủ</a> > 
-        <a href="#" onclick="history.back(); return false;"> ${categoryKey} </a> >
-        <strong>${product.name}</strong>
+        <a href="#" onclick="history.back(); return false;"> ${escapeReviewText(categoryKey)} </a> >
+        <strong>${escapeReviewText(product.name)}</strong>
     `;
   }
 
@@ -95,25 +111,25 @@ function renderProductUI(product, categoryKey) {
         <div class="detail-grid">
             <div class="left">
                 <div class="main-img-container" style="background:#fff; padding:20px; border-radius:8px; text-align:center">
-                    <img src="${product.img}" class="product-main-img" alt="${product.name}" style="object-fit:contain">
+                    <img src="${escapeReviewText(product.img)}" class="product-main-img" alt="${escapeReviewText(product.name)}" style="object-fit:contain">
                 </div>
                 <div class="product-description-content" style="margin-top:30px; background:#fff; padding:20px; border-radius:8px">
                     <h3 style="margin-bottom:15px; border-left:4px solid #d70018; padding-left:10px">Mô tả sản phẩm</h3>
-                    ${product.description || "<p>Nội dung đang được cập nhật...</p>"}
+                    ${product.description ? sanitizeProductDescription(product.description) : "<p>Nội dung đang được cập nhật...</p>"}
                 </div>
             </div>
 
             <div class="right">
-                <h1 style="font-size:24px; color:#1a234a">${product.brand ? product.brand + ' - ' : ''}${product.name}</h1>
+                <h1 style="font-size:24px; color:#1a234a">${escapeReviewText(product.brand ? product.brand + ' - ' : '')}${escapeReviewText(product.name)}</h1>
                 
                 <div class="rating-summary" style="margin:10px 0; color:#ffbe00">
                     ${generateStaticStars(product.rating)}
-                    <span style="color:#666; font-size:14px"> (${product.review_count || 0} đánh giá)</span>
+                    <span style="color:#666; font-size:14px"> (${escapeReviewText(product.review_count || 0)} đánh giá)</span>
                 </div>
 
                 <div style="margin: 15px 0; display: flex; align-items: baseline; gap:15px; flex-wrap: wrap;">
-                    <span class="price-big" style="color:#d70018; font-size:28px; font-weight:bold">${product.price.toLocaleString()}đ</span>
-                    ${product.oldPrice > 0 ? `<span class="old-price-detail" style="text-decoration:line-through; color:#999">${product.oldPrice.toLocaleString()}đ</span>` : ""}
+                    <span class="price-big" style="color:#d70018; font-size:28px; font-weight:bold">${formatProductPrice(product.price)}đ</span>
+                    ${product.oldPrice > 0 ? `<span class="old-price-detail" style="text-decoration:line-through; color:#999">${formatProductPrice(product.oldPrice)}đ</span>` : ""}
                 </div>
 
                 <div class="buy-group">
@@ -146,8 +162,8 @@ function renderProductUI(product, categoryKey) {
                       .map(
                         ([k, v]) => `
                         <tr>
-                            <td style="background:#f9f9f9; font-weight:600; width:35%">${k}</td>
-                            <td>${v}</td>
+                            <td style="background:#f9f9f9; font-weight:600; width:35%">${escapeReviewText(k)}</td>
+                            <td>${escapeReviewText(v)}</td>
                         </tr>
                     `,
                       )
@@ -160,7 +176,7 @@ function renderProductUI(product, categoryKey) {
 
   const ratingTitle = document.getElementById("rating-title");
   if (ratingTitle)
-    ratingTitle.innerText = `Đánh giá & Nhận xét: ${product.name}`;
+    ratingTitle.innerText = `Đánh giá & Nhận xét: ${escapeReviewText(product.name)}`;
 
   initButtons(product);
 }
