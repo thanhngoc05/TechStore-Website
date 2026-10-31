@@ -534,6 +534,50 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(product.stock, 5)
         self.assertEqual(self.client.put('/admin/products/update/999', headers=self.headers, json={}).status_code, 404)
 
+    def test_product_specs_and_image_validation_is_atomic(self):
+        self.make_admin()
+        invalid = [{'img': value} for value in ('javascript:alert(1)', 'data:image/svg+xml,test',
+                   '//example.com/img.png', 'image.png" onerror="test', 'https://user:pass@example.com/img.png')]
+        invalid += [{'specs': value} for value in ({'RAM': {}}, {'RAM': []}, {'RAM': None},
+                    {'': 'Empty'}, {'x' * 101: 'Long'}, {'RAM': 'x' * 2001},
+                    {str(index): 'x' for index in range(51)}, {'RAM': float('inf')},
+                    {str(index): 'ế' * 1000 for index in range(30)})]
+        invalid.append({'description': 'ế' * 21000})
+        base = {'name': 'New', 'category': 'laptop', 'price': 1, 'stock': 2, 'img': 'test.png'}
+        for changes in invalid:
+            with self.subTest(changes=list(changes)):
+                created = self.client.post('/admin/products/add', headers=self.headers, json=dict(base, **changes))
+                self.assertEqual(created.status_code, 400, created.json)
+                updated = self.client.put('/admin/products/update/1', headers=self.headers,
+                                          json=dict({'name': 'Changed'}, **changes))
+                self.assertEqual(updated.status_code, 400, updated.json)
+        with backend.app.app_context():
+            self.assertEqual(backend.Product.query.count(), 1)
+            self.assertEqual(backend.db.session.get(backend.Product, 1).name, 'Test laptop')
+
+    def test_product_specs_accept_flat_values_and_keep_safe_image_paths(self):
+        self.make_admin()
+        specs = {'RAM': '16 GB', 'Ports': 3, 'Weight': 1.5, 'Touchscreen': True}
+        response = self.client.put('/admin/products/update/1', headers=self.headers,
+                                   json={'img': 'https://example.com/product.png', 'specs': specs})
+        self.assertEqual(response.status_code, 200, response.json)
+        product = self.client.get('/api/public/products').json['laptop'][0]
+        self.assertEqual(product['specs'], specs)
+        self.assertEqual(product['img'], 'https://example.com/product.png')
+
+    def test_malformed_legacy_specs_do_not_break_public_or_admin_catalog(self):
+        self.make_admin()
+        for raw in ('{broken', '[]', 'null', '{"RAM": {"nested": true}}'):
+            with backend.app.app_context():
+                product = backend.db.session.get(backend.Product, 1)
+                product.specs = raw
+                backend.db.session.commit()
+            for endpoint, headers in (('/api/public/products', {}), ('/admin/products', self.headers)):
+                response = self.client.get(endpoint, headers=headers)
+                self.assertEqual(response.status_code, 200, response.json)
+                self.assertEqual(response.json['laptop'][0]['specs'], {})
+                self.assertEqual(response.json['laptop'][0]['name'], 'Test laptop')
+
     def test_product_deletion_preserves_order_history(self):
         self.assertEqual(self.order().status_code, 201)
         self.make_admin()

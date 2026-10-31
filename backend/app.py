@@ -499,6 +499,30 @@ def _validated_banner_input(data, partial=False):
     return values
 
 
+def _validated_product_specs(specs):
+    if not isinstance(specs, dict) or len(specs) > 50:
+        raise ValueError('Thông số sản phẩm phải là đối tượng JSON tối đa 50 mục')
+    for key, value in specs.items():
+        if not isinstance(key, str) or not key.strip() or len(key) > 100:
+            raise ValueError('Tên thông số phải có từ 1 đến 100 ký tự')
+        if not isinstance(value, (str, int, float, bool)) or len(str(value)) > 2000:
+            raise ValueError('Giá trị thông số phải là văn bản, số hoặc boolean tối đa 2000 ký tự')
+    try:
+        encoded = json.dumps(specs, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError) as error:
+        raise ValueError('Giá trị thông số không hợp lệ') from error
+    if len(encoded.encode('utf-8')) > 60000:
+        raise ValueError('Tổng dữ liệu thông số tối đa 60000 byte UTF-8')
+    return specs
+
+
+def _decoded_product_specs(raw):
+    try:
+        return _validated_product_specs(json.loads(raw or '{}'))
+    except (TypeError, ValueError):
+        return {}
+
+
 def _validated_product_input(data, partial=False):
     if not isinstance(data, dict):
         raise ValueError('Dữ liệu sản phẩm không hợp lệ')
@@ -512,14 +536,16 @@ def _validated_product_input(data, partial=False):
         if field in ('name', 'category', 'img') and not value.strip():
             raise ValueError('Thiếu tên, danh mục hoặc ảnh sản phẩm')
         values[field] = value.strip()
+        if field == 'img':
+            values[field] = _validated_image_url(value, maximum=500, required=True)
+        if field == 'description' and len(value.encode('utf-8')) > 60000:
+            raise ValueError('Mô tả sản phẩm tối đa 60000 byte UTF-8')
     for field in ('price', 'old_price', 'stock'):
         if partial and field not in data:
             continue
         values[field] = _nonnegative_int(data.get(field, 0), 2147483647 if field == 'stock' else 9223372036854775807)
     if not partial or 'specs' in data:
-        specs = data.get('specs', {})
-        if not isinstance(specs, dict):
-            raise ValueError('Thông số sản phẩm phải là một đối tượng JSON')
+        specs = _validated_product_specs(data.get('specs', {}))
         values['specs'] = json.dumps(specs, ensure_ascii=False)
     return values
 def _password_version(user):
@@ -1399,7 +1425,7 @@ def get_public_products():
             res[p.category] = []
         res[p.category].append({
             "id": p.id, "name": p.name, "price": p.price, "oldPrice": p.old_price,
-            "img": p.img, "specs": json.loads(p.specs or '{}'), "description": p.description,
+            "img": p.img, "specs": _decoded_product_specs(p.specs), "description": p.description,
             "rating": p.rating, "review_count": p.review_count, "brand": p.brand
         })
     return jsonify(res)
@@ -2480,7 +2506,7 @@ def admin_get_products():
             res[p.category] = []
         res[p.category].append({
             "id": p.id, "name": p.name, "price": p.price, "oldPrice": p.old_price,
-            "img": p.img, "specs": json.loads(p.specs or '{}'), "description": p.description,
+            "img": p.img, "specs": _decoded_product_specs(p.specs), "description": p.description,
             "rating": p.rating, "review_count": p.review_count, "brand": p.brand,
             "stock": p.stock, "is_hidden": p.is_hidden
         })
