@@ -2,6 +2,20 @@
  * NEXTECH - SCRIPTS.JS (FINAL OPTIMIZED FOR BANNERS & PRODUCTS)
  */
  
+function escapeCatalogHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[character]);
+}
+function catalogProductId(value) {
+  const id = Number(value);
+  return Number.isSafeInteger(id) && id > 0 ? id : 0;
+}
+function formatCatalogPrice(value) {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount >= 0 ? amount.toLocaleString('vi-VN') : '0';
+}
+
 let allProducts = {};
 let currentProducts = [];
 
@@ -122,21 +136,21 @@ function renderHomeGrid(data, elementId) {
       // ---------------------------
 
       return `
-            <div class="product-card" onclick="window.location.href='product-detail.html?id=${p.id}'" style="cursor: pointer;">
+            <div class="product-card" onclick="window.location.href='product-detail.html?id=${catalogProductId(p.id)}'" style="cursor: pointer;">
                 ${discount > 0 ? `<span class="tag-off">-${discount}%</span>` : ""}
                 <div class="product-img-box">
-                    <img src="${p.img}" alt="${p.name}" loading="lazy">
+                    <img src="${escapeCatalogHtml(p.img)}" alt="${escapeCatalogHtml(p.name)}" loading="lazy">
                 </div>
                 <div class="product-info">
-                    <div class="product-name">${p.name}</div>
+                    <div class="product-name">${escapeCatalogHtml(p.name)}</div>
                     
                     <div class="product-rating" style="margin: 5px 0; display: flex; align-items: center; gap: 5px;">
                         <div class="stars">${starsHtml}</div>
-                        <span style="font-size: 11px; color: #888;">(${p.review_count || 0})</span>
+                        <span style="font-size: 11px; color: #888;">(${escapeCatalogHtml(p.review_count || 0)})</span>
                     </div>
 
-                    <div class="product-price">${p.price.toLocaleString()}đ</div>
-                    ${p.oldPrice > 0 ? `<div style="text-decoration:line-through; color:#999; font-size:12px;">${p.oldPrice.toLocaleString()}đ</div>` : ""}
+                    <div class="product-price">${formatCatalogPrice(p.price)}đ</div>
+                    ${p.oldPrice > 0 ? `<div style="text-decoration:line-through; color:#999; font-size:12px;">${formatCatalogPrice(p.oldPrice)}đ</div>` : ""}
                 </div>
             </div>
         `;
@@ -169,20 +183,20 @@ function renderProducts(data) {
             if (k.includes("màn hình")) icon = "fa-desktop";
             if (k.includes("chip") || k.includes("cpu")) icon = "fa-microchip";
             if (k.includes("ram")) icon = "fa-memory";
-            specsHtml += `<span><i class="fas ${icon}"></i> ${value}</span>`;
+            specsHtml += `<span><i class="fas ${icon}"></i> ${escapeCatalogHtml(value)}</span>`;
           });
       }
       specsHtml += "</div>";
 
       return `
-            <div class="p-card" onclick="window.location.href='product-detail.html?id=${p.id}'" style="cursor: pointer;">
+            <div class="p-card" onclick="window.location.href='product-detail.html?id=${catalogProductId(p.id)}'" style="cursor: pointer;">
                 ${discount > 0 ? `<span class="tag-off">-${discount}%</span>` : ""}
-                <img src="${p.img}" alt="${p.name}" loading="lazy">
-                <div class="p-name">${p.name}</div>
+                <img src="${escapeCatalogHtml(p.img)}" alt="${escapeCatalogHtml(p.name)}" loading="lazy">
+                <div class="p-name">${escapeCatalogHtml(p.name)}</div>
                 ${specsHtml}
-                <div class="p-old">${p.oldPrice > 0 ? p.oldPrice.toLocaleString() + "đ" : "&nbsp;"}</div>
+                <div class="p-old">${p.oldPrice > 0 ? formatCatalogPrice(p.oldPrice) + "đ" : "&nbsp;"}</div>
                 <div style="display:flex; justify-content:space-between; align-items:center">
-                    <span class="p-price">${p.price.toLocaleString()}đ</span>
+                    <span class="p-price">${formatCatalogPrice(p.price)}đ</span>
               <span style="display:flex; flex-direction:row; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
               </span>
                 </div>
