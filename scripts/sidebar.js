@@ -210,11 +210,11 @@ if (searchInput && dropdown) {
 
         // Render dropdown
         dropdown.innerHTML = results.map(p => `
-            <div class="search-item" data-id="${p.id}">
-                <img src="${p.img}" alt="${p.name}">
+            <div class="search-item" data-id="${catalogProductId(p.id)}">
+                <img src="${escapeCatalogHtml(p.img)}" alt="${escapeCatalogHtml(p.name)}">
                 <div>
-                    <div class="name" style="color:#000;">${p.name}</div>
-                    <div class="price">${p.price.toLocaleString()} VNĐ</div>
+                    <div class="name" style="color:#000;">${escapeCatalogHtml(p.name)}</div>
+                    <div class="price">${formatCatalogPrice(p.price)} VNĐ</div>
                 </div>
             </div>
         `).join('');
@@ -227,7 +227,8 @@ if (searchInput && dropdown) {
         const item = e.target.closest('.search-item');
         if (!item) return;
 
-        const id = item.getAttribute('data-id');
+        const id = catalogProductId(item.getAttribute('data-id'));
+        if (!id) return;
         window.location.href = `product-detail.html?id=${id}`;
     });
 
@@ -290,7 +291,7 @@ if (searchInput && dropdown) {
                         }
                     });
                     filterMenu.classList.remove('show');
-                    filterBtn.innerHTML = `<i class="fa-solid fa-filter"></i> ${this.innerText}`;
+                    filterBtn.innerHTML = `<i class="fa-solid fa-filter"></i> ${escapeCatalogHtml(this.innerText)}`;
                 });
             });
         }
@@ -301,17 +302,17 @@ if (searchInput && dropdown) {
 
 function createProductCard(p) {
     return `
-        <div class="product-card" data-price="${p.price}">
+        <div class="product-card" data-price="${escapeCatalogHtml(p.price)}">
             <div class="product-img-box">
-                <a href="product-detail.html?id=${p.id}">
-                    <img src="${p.img}" alt="${p.name}">
+                <a href="product-detail.html?id=${catalogProductId(p.id)}">
+                    <img src="${escapeCatalogHtml(p.img)}" alt="${escapeCatalogHtml(p.name)}">
                 </a>
             </div>
             <div class="product-info">
-                <a href="product-detail.html?id=${p.id}">
-                    <div class="product-name">${p.name}</div>
+                <a href="product-detail.html?id=${catalogProductId(p.id)}">
+                    <div class="product-name">${escapeCatalogHtml(p.name)}</div>
                 </a>
-                <div class="product-price">${p.price.toLocaleString()} VNĐ</div>
+                <div class="product-price">${formatCatalogPrice(p.price)} VNĐ</div>
                 <div class="product-rating">
                     <div class="stars">
                         ${'<span class="star-icon fill">★</span>'.repeat(5)}
