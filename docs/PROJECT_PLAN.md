@@ -68,3 +68,11 @@
 - Submission is reserved before product/cart loading; payment and back controls stay disabled until it finishes, and failed attempts restore the previous controls and request key.
 - Location outages show manual full-address guidance and a retry button. Retry preserves entered customer/address fields and avoids concurrent loads or duplicate options.
 - Browser recovery tests drop a response after the real backend commits an order, then verify that retry returns the same order with the same request key. They also exercise manual shipping and recovery of the location selectors.
+
+## Catalog safety follow-up
+
+- Homepage/category cards and sidebar search escape product names, attributes and specifications. Navigation accepts positive integer product IDs, and displayed prices are converted from finite numeric values.
+- Product details escape brands, breadcrumbs, counts and specification text. Rich descriptions use a locally vendored DOMPurify build with an explicit formatting allowlist; missing sanitizer support falls back to escaped text.
+- Product writes validate safe image paths and bounded flat specification maps. Description/specification payloads are limited to 60000 UTF-8 bytes each for MySQL TEXT compatibility.
+- Public/admin catalog reads tolerate malformed legacy specification JSON without hiding the product or rewriting stored data. Administrators can repair the specifications through normal editing.
+- Chromium regression coverage checks injected catalog/search/detail payloads, retained description formatting, unsafe link removal and missing-sanitizer fallback. Existing checkout and recovery browser coverage remains part of the same suite.

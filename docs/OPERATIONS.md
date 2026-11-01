@@ -70,6 +70,14 @@ Giao diện khóa thao tác gửi đơn trước khi bắt đầu tải sản ph
 
 Nếu dịch vụ danh sách địa chỉ lỗi, khách vẫn nhập được địa chỉ đầy đủ bằng tay. Nút tải lại chỉ khởi chạy một lần tải tại một thời điểm và giữ nguyên thông tin đã nhập; danh sách trống hoặc lỗi được chuyển sang hướng dẫn nhập tay. Đây là lựa chọn thay thế cho dịch vụ địa chỉ, không xác minh địa chỉ có giao hàng được hay không.
 
+## Dữ liệu và mô tả sản phẩm
+
+Ảnh sản phẩm chỉ nhận đường dẫn trong website hoặc HTTP/HTTPS, tối đa 500 ký tự. Thông số tối đa 50 cặp tên/giá trị, không nhận đối tượng hoặc mảng lồng nhau; tên tối đa 100 ký tự, giá trị tối đa 2000 ký tự. Tổng JSON thông số và mô tả mỗi phần tối đa 60000 byte UTF-8. Yêu cầu sai bị từ chối trước khi thay đổi sản phẩm.
+
+Nếu thông số cũ không phải JSON hợp lệ hoặc vượt giới hạn, API vẫn trả sản phẩm với thông số rỗng. Dữ liệu gốc trong database được giữ để quản trị viên kiểm tra và sửa qua trình biên tập.
+
+Trang chi tiết tải DOMPurify từ `scripts/vendor/purify.min.js`, trước `product-detail.js`, để lọc mô tả mà vẫn giữ định dạng cơ bản. Khi cập nhật, kiểm tra phiên bản và bản vá tại [nguồn chính thức](https://github.com/cure53/DOMPurify), xác minh gói đã khóa và giữ giấy phép theo hướng dẫn trong `scripts/vendor/README.md`. Kiểm thử trình duyệt kiểm tra bộ lọc thật, các liên kết không an toàn và trường hợp thư viện không tải được.
+
 ## Thông báo hoàn tiền bị lỗi
 
 Mở **Quản trị → Yêu cầu hoàn tiền**, chọn hồ sơ và xem trạng thái thông báo. Nút **Gửi lại thông báo hỗ trợ** chỉ gửi khi hồ sơ chưa có lần gửi thật thành công; email thử được phân biệt là `simulated`.

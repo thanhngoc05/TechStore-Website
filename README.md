@@ -57,7 +57,7 @@ Lệnh đầu chạy kiểm tra API với SQLite tạm trong bộ nhớ, không 
 Nếu có Node.js 22 trở lên, chạy thêm kiểm tra xử lý kết quả thanh toán:
 
 ```powershell
-node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs tests/admin-refunds.test.cjs tests/customer-refunds.test.cjs tests/checkout-request.test.cjs tests/warranty-lookup.test.cjs tests/cart.test.cjs tests/checkout-rendering.test.cjs tests/checkout-submission.test.cjs tests/checkout-locations.test.cjs
+node --test tests/payment-return.test.cjs tests/order-detail.test.cjs tests/product-reviews.test.cjs tests/refund-form.test.cjs tests/order-lookup.test.cjs tests/reset-password.test.cjs tests/profile-session.test.cjs tests/admin-refunds.test.cjs tests/customer-refunds.test.cjs tests/checkout-request.test.cjs tests/warranty-lookup.test.cjs tests/cart.test.cjs tests/checkout-rendering.test.cjs tests/checkout-submission.test.cjs tests/checkout-locations.test.cjs tests/catalog-rendering.test.cjs tests/sidebar-search.test.cjs tests/product-detail-rendering.test.cjs
 ```
 
 Lệnh này kiểm tra thông báo và điều hướng khi quay về từ payOS, gồm cả kết quả giả trên URL, lỗi kết nối và hiển thị trạng thái thanh toán trong chi tiết đơn hàng. Không gọi dịch vụ thanh toán thật.
@@ -100,6 +100,9 @@ Dòng đầu chọn database thử với thông tin tài khoản do bạn tạo.
 - Không thể khóa hoặc hạ quyền quản trị viên hoạt động cuối cùng.
 - Giá và tồn kho phải là số nguyên không âm; cập nhật một phần giữ nguyên các trường còn lại.
 - Sản phẩm đã nằm trong đơn hàng được giữ lại để bảo toàn lịch sử; có thể ẩn khi ngừng bán.
+- Ảnh sản phẩm nhận đường dẫn tệp trong website hoặc HTTP/HTTPS; không nhận mã script, URL chứa tài khoản hay đường dẫn bắt đầu bằng `//`.
+- Thông số sản phẩm là đối tượng JSON tối đa 50 mục: tên mục từ 1–100 ký tự, giá trị là văn bản, số hữu hạn hoặc boolean, tối đa 2000 ký tự. Tổng thông số và mô tả mỗi phần tối đa 60000 byte UTF-8 để tương thích MySQL.
+- Tên, nhãn hiệu và thông số hiển thị dưới dạng văn bản ở danh mục, tìm kiếm và chi tiết. Mô tả cho phép đoạn văn, tiêu đề, danh sách, bảng, nhấn mạnh, ảnh và liên kết sau khi lọc; script, sự kiện, biểu mẫu, khung nhúng và CSS tùy ý bị loại bỏ. Nếu thư viện lọc không tải được, mô tả hiển thị như văn bản.
 - Ảnh tải lên chỉ nhận PNG, JPEG và WebP hợp lệ, tối đa 5 MB và 20 triệu điểm ảnh. Ảnh được xử lý lại và đặt tên riêng.
 - `EMAIL_MODE=file` luôn lưu email cục bộ, kể cả khi có sẵn cấu hình SMTP.
 
@@ -152,4 +155,6 @@ Lệnh thứ hai xóa đúng nhóm mã đã hết hạn quá thời gian lưu đ
 - `backend/`: API, cấu hình và thư viện Python.
 - `pages/`, `scripts/`, `assets/`: giao diện và tài nguyên.
 - `tests/`: kiểm tra API tự động.
+- `tests/browser/catalog-security.spec.cjs`: kiểm tra dữ liệu HTML chèn vào danh mục, tìm kiếm, thông số và mô tả bằng Chromium.
+- `scripts/vendor/`: DOMPurify được lưu cùng dự án, kèm phiên bản, nguồn gốc và giấy phép; trình duyệt không cần tải thư viện này từ CDN.
 - `docs/PROJECT_PLAN.md`: tiến độ và công việc tích hợp còn lại.
