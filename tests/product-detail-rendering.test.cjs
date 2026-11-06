@@ -4,6 +4,30 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
+test('add to cart ignores a second submission while the request is pending', async () => {
+  const button = { disabled: false };
+  let resolveRequest;
+  let calls = 0;
+  const context = vm.createContext({
+    URLSearchParams, alert() {},
+    window: { location: { search: '?id=1' } },
+    document: { addEventListener() {}, getElementById: id => id === 'btnAddToCart' ? button : null },
+    addToCartBE2: () => {
+      calls++;
+      return new Promise(resolve => { resolveRequest = resolve; });
+    },
+  });
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '../scripts/product-detail.js'), 'utf8'), context);
+  context.initButtons({ id: 1 });
+  const first = button.onclick();
+  await button.onclick();
+  assert.equal(calls, 1);
+  assert.equal(button.disabled, true);
+  resolveRequest({ ok: true });
+  await first;
+  assert.equal(button.disabled, false);
+});
+
 function setup(purifier) {
   const content = { innerHTML: '' }, breadcrumb = { innerHTML: '' };
   const context = vm.createContext({ URLSearchParams,

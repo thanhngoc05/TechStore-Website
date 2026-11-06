@@ -192,6 +192,8 @@ function initButtons(product) {
   const btnAddToCart = document.getElementById("btnAddToCart");
   if (btnAddToCart) {
     btnAddToCart.onclick = async () => {
+      if (btnAddToCart.disabled) return;
+      btnAddToCart.disabled = true;
       try {
         if (typeof addToCartBE2 !== "function") {
           alert("Không thể thêm vào giỏ: thiếu hàm giỏ hàng!");
@@ -204,6 +206,8 @@ function initButtons(product) {
       } catch (err) {
         console.error("Add to cart failed:", err);
         alert("Không thể kết nối đến server!");
+      } finally {
+        btnAddToCart.disabled = false;
       }
     };
   }
