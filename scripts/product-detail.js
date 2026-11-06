@@ -4,36 +4,30 @@
 
 // 1. Lấy ID sản phẩm từ URL
 const params = new URLSearchParams(window.location.search);
-const productId = parseInt(params.get("id"));
+const productId = Number(params.get("id"));
 
 // 2. Hàm lấy dữ liệu và hiển thị chi tiết
 async function loadProductDetail() {
+  if (!Number.isInteger(productId) || productId < 1 || productId > 2147483647) {
+    renderNotFound();
+    return false;
+  }
   try {
-    const response = await fetch(window.apiUrl("/api/public/products"));
-    const allProductsFromDB = await response.json();
-
-    let product = null;
-    let categoryKey = "";
-
-    for (let key in allProductsFromDB) {
-      let found = allProductsFromDB[key].find((item) => item.id === productId);
-      if (found) {
-        product = found;
-        categoryKey = key;
-        break;
-      }
-    }
-
-    if (product) {
-      renderProductUI(product, categoryKey);
-      // Tải bình luận ngay khi sản phẩm hiển thị thành công
-      loadReviews(product.id);
-    } else {
+    const response = await fetch(window.apiUrl(`/api/public/products/${productId}`));
+    if (response.status === 404) {
       renderNotFound();
+      return false;
     }
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const product = await response.json();
+    if (product?.id !== productId) throw new Error("Invalid product response");
+    renderProductUI(product, product.category);
+    loadReviews(product.id);
+    return true;
   } catch (error) {
     console.error("Lỗi khi tải chi tiết sản phẩm:", error);
-    renderNotFound();
+    renderNotFound("Không thể tải sản phẩm lúc này. Vui lòng tải lại trang.");
+    return false;
   }
 }
 
@@ -280,13 +274,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 });
 
-function renderNotFound() {
+function renderNotFound(message = "Sản phẩm không tồn tại hoặc đã bị gỡ bỏ!") {
   const contentArea = document.getElementById("product-content");
   if (contentArea) {
     contentArea.innerHTML = `
         <div style="text-align: center; padding: 100px 0;">
             <i class="fas fa-search" style="font-size: 60px; color: #ccc; margin-bottom: 20px;"></i>
-            <h2>Sản phẩm không tồn tại hoặc đã bị gỡ bỏ!</h2>
+            <h2>${escapeReviewText(message)}</h2>
             <a href="index.html" style="color:#007bff; font-weight:600">Quay về trang chủ</a>
         </div>
     `;

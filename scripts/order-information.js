@@ -133,11 +133,10 @@ const isCartMode = urlParams.get("cart") === "1" || Number.isNaN(orderProductId)
 
 async function loadProductForOrder() {
   try {
-    const res = await fetch(window.apiUrl("/api/public/products"));
-    const allProductsFromDB = await res.json().catch(() => ({}));
-    const flat = Object.values(allProductsFromDB || {}).flat();
-    const item = (flat || []).find(p => p && p.id === orderProductId);
-    if (item) foundProduct = item;
+    const res = await fetch(window.apiUrl(`/api/public/products/${orderProductId}`));
+    if (!res.ok) return;
+    const item = await res.json();
+    if (item?.id === orderProductId) foundProduct = item;
     if (foundProduct) updateOrderDisplayImages();
   } catch (e) { console.error("Không thể tải sản phẩm:", e); }
 }

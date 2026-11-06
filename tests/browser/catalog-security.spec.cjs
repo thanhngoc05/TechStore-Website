@@ -16,6 +16,7 @@ test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => { window.__catalogXss = false; });
   await page.route('https://**/*', route => route.abort());
   await page.route('**/api/public/products', route => route.fulfill({ json: { SamSung: [product] } }));
+  await page.route('**/api/public/products/101', route => route.fulfill({ json: { ...product, category: 'SamSung' } }));
   await page.route('**/api/reviews/*', route => route.fulfill({ json: [] }));
 });
 
@@ -68,4 +69,12 @@ test('missing sanitizer falls back to escaped description text', async ({ page }
   await expect(description).toContainText('<h3>Safe heading</h3>');
   await expect(description.locator('script,svg,iframe,form,input,img[onerror]')).toHaveCount(0);
   expect(await page.evaluate(() => window.__catalogXss)).toBe(false);
+});
+
+test('detail distinguishes a missing product from a temporary catalog failure', async ({ page }) => {
+  await page.route('**/api/public/products/102', route => route.fulfill({ status: 503, json: {} }));
+  await page.goto('/product-detail.html?id=102');
+  await expect(page.locator('#product-content h2')).toContainText('Không thể tải sản phẩm');
+  await page.goto('/product-detail.html?id=2147483647');
+  await expect(page.locator('#product-content h2')).toContainText('Sản phẩm không tồn tại');
 });
