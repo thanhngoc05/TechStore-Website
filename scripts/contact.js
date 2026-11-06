@@ -15,6 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (btn.disabled) return;
 
     const name = String(nameEl.value || "").trim();
     const email = String(emailEl.value || "").trim();
@@ -22,6 +23,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (!name || !message) {
       alert("Vui lòng nhập Họ tên và Nội dung!");
+      return;
+    }
+    if (name.length > 120 || email.length > 120 || message.length > 5000) {
+      alert("Họ tên và email tối đa 120 ký tự. Nội dung tối đa 5.000 ký tự.");
       return;
     }
 

@@ -316,15 +316,15 @@
             <form id="contactForm">
               <div class="form-group">
                 <label>Họ và tên</label>
-                <input id="contactName" type="text" placeholder="Nhập tên của bạn" />
+                <input id="contactName" type="text" maxlength="120" autocomplete="name" required placeholder="Nhập tên của bạn" />
               </div>
               <div class="form-group">
                 <label>Email</label>
-                <input id="contactEmail" type="email" placeholder="Nhập email" />
+                <input id="contactEmail" type="email" maxlength="120" autocomplete="email" placeholder="Nhập email" />
               </div>
               <div class="form-group">
                 <label>Nội dung</label>
-                <textarea id="contactMessage" rows="4" placeholder="Bạn cần hỗ trợ gì?"></textarea>
+                <textarea id="contactMessage" rows="4" maxlength="5000" required placeholder="Bạn cần hỗ trợ gì?"></textarea>
               </div>
               <button id="contactSubmit" type="submit" class="submit-contact">GỬI YÊU CẦU</button>
             </form>
