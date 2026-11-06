@@ -3148,8 +3148,10 @@ def admin_update_order_status(order_code):
     admin, err = _require_admin()
     if err:
         return err
-    data = request.get_json() or {}
-    new_status = (data.get('status') or '').strip().lower()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('status'), str):
+        return jsonify({"msg": "status không hợp lệ"}), 400
+    new_status = data['status'].strip().lower()
     allowed = {'processing', 'shipping', 'completed', 'cancelled'}
     if new_status not in allowed:
         return jsonify({"msg": "status không hợp lệ"}), 400

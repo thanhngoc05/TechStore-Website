@@ -194,6 +194,16 @@ class BackendTests(unittest.TestCase):
                 self.assertEqual(r.status_code, 200, r.json)
         self.assertEqual(self.payment_state(), ('success', 'processing'))
 
+    def test_admin_status_rejects_malformed_payloads(self):
+        code = self.order().json['order_code']
+        self.make_admin()
+        url = f'/admin/orders/{code}/status'
+        for body in (['shipping'], {'status': True}, {'status': ['shipping']}, {'status': 12}):
+            self.assertEqual(self.client.put(url, headers=self.headers, json=body).status_code, 400)
+        self.assertEqual(self.client.put(url, headers=self.headers, data='{',
+                                        content_type='application/json').status_code, 400)
+        self.assertEqual(self.client.get(f'/admin/orders/{code}', headers=self.headers).json['status'], 'processing')
+
     def test_admin_status_is_persisted(self):
         code = self.order().json['order_code']
         with backend.app.app_context():
