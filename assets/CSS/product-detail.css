@@ -184,7 +184,14 @@
 }
 
 .star-rating input {
-  display: none;
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.star-rating input:focus-visible + label {
+  outline: 2px solid currentColor;
 }
 
 .star-rating label {

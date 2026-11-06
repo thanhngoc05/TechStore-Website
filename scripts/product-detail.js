@@ -226,11 +226,13 @@ function initButtons(product) {
 
 // 6. Xử lý Gửi Đánh Giá (Lưu Database)
 document.addEventListener("DOMContentLoaded", () => {
-  loadProductDetail();
-
   const submitBtn = document.getElementById("submitReview");
+  loadProductDetail().then(available => {
+    if (submitBtn) submitBtn.disabled = !available;
+  });
   if (submitBtn) {
     submitBtn.onclick = async function () {
+      if (submitBtn.disabled) return;
       const token = localStorage.getItem("token");
 
       if (!token) {
@@ -239,10 +241,10 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
 
-      const content = document.getElementById("reviewText").value;
+      const content = document.getElementById("reviewText").value.trim();
       const starInput = document.querySelector('input[name="stars"]:checked');
 
-      if (!starInput || !content.trim()) {
+      if (!starInput || !content) {
         alert("Vui lòng chọn số sao và nhập nội dung cảm nhận!");
         return;
       }
@@ -253,6 +255,7 @@ document.addEventListener("DOMContentLoaded", () => {
         content: content,
       };
 
+      submitBtn.disabled = true;
       try {
         const res = await fetch(window.apiUrl("/api/reviews/add"), {
           method: "POST",
@@ -267,12 +270,14 @@ document.addEventListener("DOMContentLoaded", () => {
           alert("Gửi đánh giá thành công! Cảm ơn bạn.");
           location.reload();
         } else {
-          const errData = await res.json();
+          const errData = await res.json().catch(() => ({}));
           alert("Lỗi: " + (errData.msg || "Không thể gửi đánh giá"));
         }
       } catch (error) {
         console.error("Lỗi API:", error);
         alert("Không thể kết nối đến server!");
+      } finally {
+        submitBtn.disabled = false;
       }
     };
   }

@@ -236,37 +236,43 @@
                     name="stars"
                     id="star-5"
                     value="5"
-                  /><label for="star-5"><i class="fas fa-star"></i></label>
+                    aria-label="5 sao"
+                  /><label for="star-5">★</label>
                   <input
                     type="radio"
                     name="stars"
                     id="star-4"
                     value="4"
-                  /><label for="star-4"><i class="fas fa-star"></i></label>
+                    aria-label="4 sao"
+                  /><label for="star-4">★</label>
                   <input
                     type="radio"
                     name="stars"
                     id="star-3"
                     value="3"
-                  /><label for="star-3"><i class="fas fa-star"></i></label>
+                    aria-label="3 sao"
+                  /><label for="star-3">★</label>
                   <input
                     type="radio"
                     name="stars"
                     id="star-2"
                     value="2"
-                  /><label for="star-2"><i class="fas fa-star"></i></label>
+                    aria-label="2 sao"
+                  /><label for="star-2">★</label>
                   <input
                     type="radio"
                     name="stars"
                     id="star-1"
                     value="1"
-                  /><label for="star-1"><i class="fas fa-star"></i></label>
+                    aria-label="1 sao"
+                  /><label for="star-1">★</label>
                   <span>Chọn đánh giá của bạn</span>
                 </div>
 
                 <div class="input-group-review">
                   <textarea
                     id="reviewText"
+                    maxlength="5000"
                     placeholder="Mời bạn chia sẻ thêm cảm nhận về sản phẩm..."
                   ></textarea>
                   <div class="user-info-fields">
@@ -285,6 +291,7 @@
                     type="button"
                     id="submitReview"
                     class="btn-submit-review"
+                    disabled
                   >
                     GỬI ĐÁNH GIÁ
                   </button>

@@ -77,6 +77,36 @@ test('detail distinguishes a missing product from a temporary catalog failure', 
   await expect(page.locator('#product-content h2')).toContainText('Không thể tải sản phẩm');
   await page.goto('/product-detail.html?id=2147483647');
   await expect(page.locator('#product-content h2')).toContainText('Sản phẩm không tồn tại');
+  await expect(page.locator('#submitReview')).toBeDisabled();
+});
+
+test('review submission stays disabled during a pending request and recovers after rejection', async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem('token', 'review-test-token'));
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  let requests = 0;
+  await page.route('**/api/reviews/add', async route => {
+    requests++;
+    await pending;
+    await route.fulfill({ status: 429, json: { msg: 'Retry later' } });
+  });
+  await page.goto('/product-detail.html?id=101');
+  const button = page.locator('#submitReview');
+  await expect(button).toBeEnabled();
+  await page.locator('label[for="star-4"]').click();
+  await page.locator('#reviewText').fill('Review draft');
+  try {
+    const request = page.waitForRequest('**/api/reviews/add');
+    await button.click();
+    await request;
+    await expect(button).toBeDisabled();
+    await button.evaluate(element => element.click());
+  } finally {
+    release();
+  }
+  await expect(button).toBeEnabled();
+  await expect(page.locator('#reviewText')).toHaveValue('Review draft');
+  expect(requests).toBe(1);
 });
 
 test('account header escapes the username and sign-out clears only session state', async ({ page }) => {
