@@ -1540,12 +1540,12 @@ def get_cart():
     user, err = _get_current_user_entity()
     if err:
         return err
-    items = CartItem.query.filter_by(user_id=user.id).order_by(CartItem.created_at.desc()).all()
+    items = (db.session.query(CartItem, Product)
+             .join(Product, Product.id == CartItem.product_id)
+             .filter(CartItem.user_id == user.id)
+             .order_by(CartItem.created_at.desc(), CartItem.id.desc()).all())
     res = []
-    for it in items:
-        p = db.session.get(Product, it.product_id)
-        if not p:
-            continue
+    for it, p in items:
         res.append({
             "id": it.id, "product_id": p.id, "name": p.name, "img": p.img,
             "price": p.price, "quantity": it.quantity, "stock": p.stock,
