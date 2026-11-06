@@ -2216,12 +2216,16 @@ def confirm_payment():
     try:
         newly_paid = False
         with _session_begin():
-            payment = Payment.query.filter_by(payment_ref=payment_ref).with_for_update().first()
-            if not payment:
+            order_id = db.session.query(Payment.order_id).filter_by(payment_ref=payment_ref).scalar()
+            if order_id is None:
                 return jsonify({"msg": "Payment không tồn tại"}), 404
-            order = Order.query.filter_by(id=payment.order_id, user_id=user.id).with_for_update().first()
+            # Cancellation and fulfillment also lock the order before its payments.
+            order = Order.query.filter_by(id=order_id, user_id=user.id).with_for_update().first()
             if not order:
                 return jsonify({"msg": "Không có quyền thao tác"}), 403
+            payment = Payment.query.filter_by(order_id=order.id, payment_ref=payment_ref).with_for_update().first()
+            if not payment:
+                return jsonify({"msg": "Payment không tồn tại"}), 404
             if payment.provider != 'payos':
                 return jsonify({"msg": "COD được xác nhận khi giao hàng"}), 400
             if payment.status == 'pending':
@@ -2259,10 +2263,15 @@ def payos_webhook():
     try:
         newly_paid = False
         with _session_begin():
-            payment = Payment.query.filter_by(payment_ref=str(verified.order_code), provider='payos').with_for_update().first()
+            payment_ref = str(verified.order_code)
+            order_id = db.session.query(Payment.order_id).filter_by(payment_ref=payment_ref, provider='payos').scalar()
+            if order_id is None:
+                return jsonify({"message": "Payment not found"}), 200
+            order = Order.query.filter_by(id=order_id).with_for_update().first()
+            payment = Payment.query.filter_by(order_id=order_id, payment_ref=payment_ref,
+                                              provider='payos').with_for_update().first()
             if not payment:
                 return jsonify({"message": "Payment not found"}), 200
-            order = Order.query.filter_by(id=payment.order_id).with_for_update().first()
             if not order or verified.amount != payment.amount or verified.currency != 'VND':
                 return jsonify({"msg": "Thông tin thanh toán không khớp"}), 409
             was_pending = payment.status == 'pending'
