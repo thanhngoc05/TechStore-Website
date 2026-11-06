@@ -78,3 +78,25 @@ test('detail distinguishes a missing product from a temporary catalog failure', 
   await page.goto('/product-detail.html?id=2147483647');
   await expect(page.locator('#product-content h2')).toContainText('Sản phẩm không tồn tại');
 });
+
+test('account header escapes the username and sign-out clears only session state', async ({ page }) => {
+  await page.goto('/index.html');
+  await page.evaluate(username => {
+    localStorage.setItem('token', 'header-test-token');
+    localStorage.setItem('username', username);
+    localStorage.setItem('role', 'user');
+    localStorage.setItem('storefront-preference', 'keep');
+    sessionStorage.setItem('order_idempotency_key', 'old-order');
+  }, product.name);
+  await page.reload();
+  await expect(page.locator('#user-display span')).toHaveText(product.name);
+  await expect(page.locator('#user-display img')).toHaveCount(0);
+  await expect(page.locator('#user-display #logout-btn')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__catalogXss)).toBe(false);
+  await page.getByRole('button', { name: 'Đăng xuất' }).click();
+  await expect(page.getByRole('button', { name: 'Đăng xuất' })).toHaveCount(0);
+  expect(await page.evaluate(() => ({
+    token: localStorage.getItem('token'), preference: localStorage.getItem('storefront-preference'),
+    checkout: sessionStorage.getItem('order_idempotency_key'),
+  }))).toEqual({ token: null, preference: 'keep', checkout: null });
+});
