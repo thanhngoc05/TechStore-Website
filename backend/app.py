@@ -1980,7 +1980,7 @@ def cancel_my_order(order_code):
             total_amount = order.total_amount
         email_sent = False
         email_error = None
-        if email_to:
+        if email_to and not already_cancelled:
             subject = f"NexTech - Đơn hàng {order_code} đã bị hủy"
             time_text = cancelled_at.strftime('%d/%m/%Y %H:%M:%S') if cancelled_at else ''
             lines = [f"Xin chào {customer_name},", "", f"Đơn hàng {order_code} đã được hủy."]

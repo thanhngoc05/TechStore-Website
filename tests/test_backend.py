@@ -795,6 +795,25 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
 
+    def test_repeated_cancellation_does_not_send_another_email(self):
+        created = self.client.post('/api/orders', headers=self.headers, json={
+            'items': [{'product_id': 1, 'quantity': 2}],
+            'customer': {'name': 'Buyer', 'phone': '0901234567', 'address': 'Test',
+                         'email': 'buyer@example.com'},
+        })
+        self.assertEqual(created.status_code, 201, created.json)
+        url = f"/api/orders/{created.json['order_code']}/cancel"
+        with patch.object(backend, '_send_email_if_configured', return_value=(True, None)) as send:
+            first = self.client.put(url, headers=self.headers)
+            again = self.client.put(url, headers=self.headers)
+        self.assertEqual(first.status_code, 200, first.json)
+        self.assertEqual(again.status_code, 200, again.json)
+        self.assertTrue(again.json['already_cancelled'])
+        self.assertFalse(again.json['email_sent'])
+        send.assert_called_once()
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 5)
+
     def test_unpaid_online_order_can_be_cancelled_without_refund(self):
         code = self.pending_payment()
         self.assertFalse(self.client.get('/api/orders/' + code, headers=self.headers).json['requires_refund'])
