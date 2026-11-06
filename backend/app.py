@@ -570,9 +570,12 @@ def _get_current_user_entity():
         return None, (jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403)
     return user, None
 
+ONLINE_PAYMENT_PROVIDERS = ('payos', 'momo', 'bank', 'napas', 'atm')
+
+
 def _refundable_payment(order, for_update=False):
     query = Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
-        Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc())
+        Payment.provider.in_(ONLINE_PAYMENT_PROVIDERS)).order_by(Payment.id.desc())
     if for_update:
         query = query.with_for_update()
     return query.first()
@@ -3185,6 +3188,10 @@ def admin_update_order_status(order_code):
             if new_status == 'cancelled' and _refundable_payment(order, for_update=True):
                 return jsonify({"msg": "Đơn đã thanh toán trực tuyến và cần xử lý hoàn tiền.",
                                 "requires_refund": True}), 409
+            if new_status in ('shipping', 'completed') and (order.payment_method or '').lower() in ONLINE_PAYMENT_PROVIDERS:
+                payment = _refundable_payment(order, for_update=True)
+                if not payment or payment.amount != order.total_amount:
+                    return jsonify({"msg": "Cần xác nhận thanh toán đủ số tiền trước khi giao hàng."}), 409
             email_to = order.customer_email
             customer_name = order.customer_name
             customer_phone = order.customer_phone

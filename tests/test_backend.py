@@ -204,6 +204,25 @@ class BackendTests(unittest.TestCase):
                                         content_type='application/json').status_code, 400)
         self.assertEqual(self.client.get(f'/admin/orders/{code}', headers=self.headers).json['status'], 'processing')
 
+    def test_admin_fulfills_online_order_only_after_full_payment(self):
+        code = self.pending_payment()
+        self.make_admin()
+        url = f'/admin/orders/{code}/status'
+        self.assertEqual(self.client.put(url, headers=self.headers, json={'status': 'shipping'}).status_code, 409)
+        with backend.app.app_context():
+            payment = backend.Payment.query.one()
+            payment.status = 'success'
+            payment.amount -= 1
+            backend.db.session.commit()
+        self.assertEqual(self.client.put(url, headers=self.headers, json={'status': 'shipping'}).status_code, 409)
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            backend.Payment.query.one().amount = backend.Order.query.one().total_amount
+            backend.db.session.commit()
+        for status in ('shipping', 'completed'):
+            response = self.client.put(url, headers=self.headers, json={'status': status})
+            self.assertEqual(response.status_code, 200, response.json)
+
     def test_admin_status_is_persisted(self):
         code = self.order().json['order_code']
         with backend.app.app_context():
