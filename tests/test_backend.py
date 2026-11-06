@@ -102,6 +102,17 @@ class BackendTests(unittest.TestCase):
                 with self.subTest(url=url):
                     self.assertEqual(self.client.get(url).status_code, 200)
 
+    def test_public_product_detail_matches_catalog_and_respects_visibility(self):
+        expected = self.client.get('/api/public/products').json['laptop'][0]
+        response = self.client.get('/api/public/products/1')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, dict(expected, category='laptop'))
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).is_hidden = True
+            backend.db.session.commit()
+        for product_id in (0, 1, 999, 99999999999999999999):
+            self.assertEqual(self.client.get(f'/api/public/products/{product_id}').status_code, 404)
+
     def test_location_proxy_rejects_bad_upstream_bodies(self):
         for body in (b'<html>Service unavailable</html>', b'{"error":"upstream"}', b' ' * (8 * 1024 * 1024 + 1)):
             with self.subTest(length=len(body)):

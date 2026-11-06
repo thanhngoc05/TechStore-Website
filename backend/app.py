@@ -1422,19 +1422,31 @@ def register():
 
     return jsonify({"msg": "Đăng ký thành công"}), 201
 
+def _public_product_data(product):
+    return {
+        "id": product.id, "name": product.name, "price": product.price, "oldPrice": product.old_price,
+        "img": product.img, "specs": _decoded_product_specs(product.specs), "description": product.description,
+        "rating": product.rating, "review_count": product.review_count, "brand": product.brand,
+    }
+
+
 @app.route('/api/public/products', methods=['GET'])
 def get_public_products():
-    prods = Product.query.filter_by(is_hidden=False).all()
     res = {}
-    for p in prods:
-        if p.category not in res:
-            res[p.category] = []
-        res[p.category].append({
-            "id": p.id, "name": p.name, "price": p.price, "oldPrice": p.old_price,
-            "img": p.img, "specs": _decoded_product_specs(p.specs), "description": p.description,
-            "rating": p.rating, "review_count": p.review_count, "brand": p.brand
-        })
+    for product in Product.query.filter_by(is_hidden=False).all():
+        res.setdefault(product.category, []).append(_public_product_data(product))
     return jsonify(res)
+
+
+@app.route('/api/public/products/<int:product_id>', methods=['GET'])
+def get_public_product(product_id):
+    if not 1 <= product_id <= 2147483647:
+        return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    product = Product.query.filter_by(id=product_id, is_hidden=False).first()
+    if not product:
+        return jsonify({"msg": "Sản phẩm không tồn tại"}), 404
+    return jsonify({**_public_product_data(product), "category": product.category})
+
 
 @app.route('/api/public/locations', methods=['GET'])
 def get_public_locations():
