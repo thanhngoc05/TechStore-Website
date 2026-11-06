@@ -2929,8 +2929,8 @@ def admin_list_orders():
     except Exception:
         limit, offset = 100, 0
     limit = max(1, min(limit, 500))
-    offset = max(0, offset)
-    orders = Order.query.order_by(Order.created_at.desc()).offset(offset).limit(limit).all()
+    offset = max(0, min(offset, 2147483647))
+    orders = Order.query.order_by(Order.created_at.desc(), Order.id.desc()).offset(offset).limit(limit).all()
     return jsonify([{
         "order_code": o.order_code, "status": o.status, "total_amount": o.total_amount,
         "customer_name": o.customer_name, "customer_phone": o.customer_phone,

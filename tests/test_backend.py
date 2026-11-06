@@ -235,6 +235,22 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
 
+    def test_admin_order_pages_break_timestamp_ties_and_bound_offsets(self):
+        first = self.order().json['order_code']
+        second = self.order().json['order_code']
+        self.make_admin()
+        with backend.app.app_context():
+            stamp = backend.Order.query.order_by(backend.Order.id).first().created_at
+            backend.Order.query.update({'created_at': stamp})
+            backend.db.session.commit()
+        for offset, expected in ((0, second), (1, first)):
+            response = self.client.get(f'/admin/orders?limit=1&offset={offset}', headers=self.headers)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual([row['order_code'] for row in response.json], [expected])
+        response = self.client.get('/admin/orders?offset=99999999999999999999', headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json, [])
+
     def test_admin_status_is_persisted(self):
         code = self.order().json['order_code']
         with backend.app.app_context():
