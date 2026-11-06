@@ -1445,15 +1445,22 @@ def get_public_locations():
         depth = 3
     depth = max(1, min(depth, 3))
     upstream_url = f"https://provinces.open-api.vn/api/?depth={depth}"
+    max_bytes = 8 * 1024 * 1024
     try:
         req = urllib.request.Request(upstream_url, headers={'User-Agent': 'NexTech/1.0', 'Accept': 'application/json'})
         with urllib.request.urlopen(req, timeout=5) as resp:
-            body = resp.read()
-        response = app.response_class(body, status=200, mimetype='application/json')
+            body = resp.read(max_bytes + 1)
+        if len(body) > max_bytes:
+            raise ValueError('Location response too large')
+        locations = json.loads(body)
+        if not isinstance(locations, list):
+            raise ValueError('Expected a location list')
+        response = jsonify(locations)
         response.headers['Cache-Control'] = 'public, max-age=86400'
         return response
-    except Exception as e:
-        return jsonify({"msg": "Không thể tải locations", "upstream": "provinces.open-api.vn", "detail": str(e)}), 502
+    except Exception as error:
+        app.logger.warning('Location upstream request failed (%s)', type(error).__name__)
+        return jsonify({"msg": "Không thể tải danh sách địa chỉ."}), 502
 
 @app.route('/api/reviews/add', methods=['POST'])
 @jwt_required()

@@ -102,6 +102,15 @@ class BackendTests(unittest.TestCase):
                 with self.subTest(url=url):
                     self.assertEqual(self.client.get(url).status_code, 200)
 
+    def test_location_proxy_rejects_bad_upstream_bodies(self):
+        for body in (b'<html>Service unavailable</html>', b'{"error":"upstream"}', b' ' * (8 * 1024 * 1024 + 1)):
+            with self.subTest(length=len(body)):
+                with patch.object(backend.urllib.request, 'urlopen', return_value=BytesIO(body)):
+                    response = self.client.get('/api/public/locations')
+                self.assertEqual(response.status_code, 502)
+                self.assertEqual(set(response.json), {'msg'})
+                self.assertNotIn('public', response.headers.get('Cache-Control', ''))
+
     def test_login_validation(self):
         for body in ({}, [], {'username': 'buyer'}, {'username': 'buyer', 'password': 123}):
             with self.subTest(body=body):
