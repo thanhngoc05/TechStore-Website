@@ -45,6 +45,23 @@ test('category specifications stay literal and valid product navigation still wo
   await expect(page).toHaveURL(/product-detail\.html\?id=101$/);
 });
 
+test('search suggestions can be focused, dismissed and opened using the keyboard', async ({ page }) => {
+  await page.goto('/index.html');
+  await expect(page.locator('#samsung-grid .product-name')).toHaveText(product.name);
+  const input = page.getByRole('textbox', { name: 'Tìm sản phẩm' });
+  const suggestion = page.locator('#searchDropdown a.search-item');
+  await input.fill('need');
+  await input.press('ArrowDown');
+  await expect(suggestion).toBeFocused();
+  await suggestion.press('Escape');
+  await expect(input).toBeFocused();
+  await expect(suggestion).toBeHidden();
+  await input.fill('needle');
+  await input.press('ArrowDown');
+  await suggestion.press('Enter');
+  await expect(page).toHaveURL(/product-detail\.html\?id=101$/);
+});
+
 test('rich product descriptions retain formatting while removing active markup and unsafe links', async ({ page }) => {
   await page.goto('/product-detail.html?id=101');
   await expect(page.locator('#product-content h1')).toHaveText(`${product.brand} - ${product.name}`);

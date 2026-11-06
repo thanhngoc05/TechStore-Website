@@ -6,7 +6,7 @@ const vm = require('node:vm');
 
 function setup() {
   const inputEvents = {}, dropdownEvents = {}, ready = [];
-  const input = { value: 'needle', addEventListener: (event, handler) => { inputEvents[event] = handler; } };
+  const input = { value: 'needle', setAttribute() {}, addEventListener: (event, handler) => { inputEvents[event] = handler; } };
   const dropdown = { innerHTML: '', style: {}, addEventListener: (event, handler) => { dropdownEvents[event] = handler; } };
   const document = { addEventListener() {}, querySelectorAll: () => [], querySelector: () => null,
     getElementById: id => id === 'searchInput' ? input : id === 'searchDropdown' ? dropdown : null };
@@ -28,7 +28,7 @@ test('search suggestions escape stored product names and image attributes', () =
   assert.ok(!dropdown.innerHTML.includes('<svg') && !dropdown.innerHTML.includes('<script>'));
   assert.ok(dropdown.innerHTML.includes('needle &lt;svg onload=evil()&gt;'));
   assert.ok(dropdown.innerHTML.includes('/image.png&quot; onerror=&quot;evil()'));
-  assert.ok(dropdown.innerHTML.includes('data-id="0"'));
+  assert.ok(!dropdown.innerHTML.includes('href='));
 });
 
 test('sidebar cards use escaped attributes and retain valid product links', () => {
@@ -40,11 +40,10 @@ test('sidebar cards use escaped attributes and retain valid product links', () =
   assert.ok(html.includes('1.000 VNĐ'));
 });
 
-test('search navigation ignores malformed identifiers and accepts positive integer IDs', () => {
-  const { dropdownEvents, window } = setup();
-  const click = id => dropdownEvents.click({ target: { closest: () => ({ getAttribute: () => id }) } });
-  click('javascript:evil()');
-  assert.equal(window.location.href, '');
-  click('7');
-  assert.equal(window.location.href, 'product-detail.html?id=7');
+test('search suggestions use native links with positive integer IDs', () => {
+  const { context, input, dropdown, inputEvents } = setup();
+  context.product = { id: 7, name: 'Needle', img: '/image.png', price: 10 };
+  vm.runInContext('allProducts = {Test: [product]}', context);
+  inputEvents.input.call(input);
+  assert.ok(dropdown.innerHTML.includes('<a class="search-item" href="product-detail.html?id=7">'));
 });

@@ -209,32 +209,47 @@ if (searchInput && dropdown) {
         }
 
         // Render dropdown
-        dropdown.innerHTML = results.map(p => `
-            <div class="search-item" data-id="${catalogProductId(p.id)}">
+        dropdown.innerHTML = results.map(p => {
+            const id = catalogProductId(p.id);
+            const href = id ? ` href="product-detail.html?id=${id}"` : '';
+            return `
+            <a class="search-item"${href}>
                 <img src="${escapeCatalogHtml(p.img)}" alt="${escapeCatalogHtml(p.name)}">
                 <div>
                     <div class="name" style="color:#000;">${escapeCatalogHtml(p.name)}</div>
                     <div class="price">${formatCatalogPrice(p.price)} VNĐ</div>
                 </div>
-            </div>
-        `).join('');
+            </a>
+        `;
+        }).join('');
 
         dropdown.style.display = 'block';
     });
 
-    // 👉 CLICK vào sản phẩm → sang trang chi tiết
-    dropdown.addEventListener('click', function (e) {
-        const item = e.target.closest('.search-item');
-        if (!item) return;
-
-        const id = catalogProductId(item.getAttribute('data-id'));
-        if (!id) return;
-        window.location.href = `product-detail.html?id=${id}`;
+    searchInput.setAttribute('aria-label', 'Tìm sản phẩm');
+    searchInput.addEventListener('keydown', function (event) {
+        if (dropdown.style.display !== 'block') return;
+        if (event.key === 'ArrowDown') {
+            const firstLink = dropdown.querySelector('a.search-item[href]');
+            if (firstLink) {
+                event.preventDefault();
+                firstLink.focus();
+            }
+        } else if (event.key === 'Escape') {
+            dropdown.style.display = 'none';
+        }
+    });
+    dropdown.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            dropdown.style.display = 'none';
+            searchInput.focus();
+        }
     });
 
     // 👉 CLICK ngoài → ẩn dropdown
     document.addEventListener('click', function (e) {
-        if (!document.querySelector('.search-bar').contains(e.target)) {
+        if (!document.querySelector('.search-bar')?.contains(e.target)) {
             dropdown.style.display = 'none';
         }
     });
