@@ -570,9 +570,12 @@ def _get_current_user_entity():
         return None, (jsonify({"msg": "Tài khoản của bạn hiện đang bị khóa!"}), 403)
     return user, None
 
-def _refundable_payment(order):
-    return Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
-        Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc()).first()
+def _refundable_payment(order, for_update=False):
+    query = Payment.query.filter(Payment.order_id == order.id, Payment.status == 'success',
+        Payment.provider.in_(('payos', 'momo', 'bank', 'napas', 'atm'))).order_by(Payment.id.desc())
+    if for_update:
+        query = query.with_for_update()
+    return query.first()
 
 def _refund_payload(record, full=False):
     order = db.session.get(Order, record.order_id)
@@ -1936,7 +1939,7 @@ def cancel_my_order(order_code):
             order = Order.query.filter_by(order_code=order_code, user_id=user.id).with_for_update().first()
             if not order:
                 return jsonify({"msg": "Đơn hàng không tồn tại"}), 404
-            if _refundable_payment(order):
+            if _refundable_payment(order, for_update=True):
                 return jsonify({"msg": "Đơn đã thanh toán trực tuyến. Vui lòng gửi yêu cầu hoàn tiền để được hỗ trợ.",
                                 "requires_refund": True}), 409
             try:
@@ -3179,6 +3182,9 @@ def admin_update_order_status(order_code):
             prev_status = current
             if new_status == prev_status:
                 return jsonify({"msg": "OK", "status": order.status}), 200
+            if new_status == 'cancelled' and _refundable_payment(order, for_update=True):
+                return jsonify({"msg": "Đơn đã thanh toán trực tuyến và cần xử lý hoàn tiền.",
+                                "requires_refund": True}), 409
             email_to = order.customer_email
             customer_name = order.customer_name
             customer_phone = order.customer_phone

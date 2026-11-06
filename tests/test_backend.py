@@ -762,6 +762,20 @@ class BackendTests(unittest.TestCase):
         with backend.app.app_context():
             self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
 
+    def test_admin_cannot_cancel_a_paid_online_order_directly(self):
+        code = self.pending_payment()
+        self.make_admin()
+        with backend.app.app_context():
+            backend.Payment.query.one().status = 'success'
+            backend.db.session.commit()
+        response = self.client.put(f'/admin/orders/{code}/status', headers=self.headers,
+                                   json={'status': 'cancelled'})
+        self.assertEqual(response.status_code, 409, response.json)
+        self.assertTrue(response.json['requires_refund'])
+        self.assertEqual(self.payment_state(), ('success', 'processing'))
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+
     def test_unpaid_online_order_can_be_cancelled_without_refund(self):
         code = self.pending_payment()
         self.assertFalse(self.client.get('/api/orders/' + code, headers=self.headers).json['requires_refund'])
