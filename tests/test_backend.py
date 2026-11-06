@@ -489,6 +489,16 @@ class BackendTests(unittest.TestCase):
             self.assertEqual(backend.Review.query.count(), 0)
             self.assertEqual(backend.db.session.get(backend.Product, 1).review_count, 0)
 
+    def test_public_reviews_follow_product_visibility(self):
+        response = self.client.post('/api/reviews/add', headers=self.headers,
+                                    json={'product_id': 1, 'rating': 4, 'content': 'Visible review'})
+        self.assertEqual(response.status_code, 201, response.json)
+        self.assertEqual(len(self.client.get('/api/reviews/1').json), 1)
+        with backend.app.app_context():
+            backend.db.session.get(backend.Product, 1).is_hidden = True
+            backend.db.session.commit()
+        self.assertEqual(self.client.get('/api/reviews/1').json, [])
+
     def test_reviews_reject_missing_and_hidden_products(self):
         for product_id in (999, 1):
             with backend.app.app_context():

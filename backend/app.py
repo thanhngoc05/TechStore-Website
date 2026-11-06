@@ -1485,8 +1485,11 @@ def add_review():
 
 @app.route('/api/reviews/<int:pid>', methods=['GET'])
 def get_reviews(pid):
-    revs = Review.query.filter_by(product_id=pid).order_by(Review.created_at.desc()).all()
-    return jsonify([{"username": r.username, "rating": r.rating, "content": r.content, "date": r.created_at.strftime("%d/%m/%Y")} for r in revs])
+    revs = (Review.query.join(Product, Product.id == Review.product_id)
+            .filter(Review.product_id == pid, Product.is_hidden.is_(False))
+            .order_by(Review.created_at.desc(), Review.id.desc()).all())
+    return jsonify([{"username": r.username, "rating": r.rating, "content": r.content,
+                     "date": r.created_at.strftime("%d/%m/%Y") if r.created_at else ""} for r in revs])
 
 @app.route('/api/profile', methods=['GET'])
 @jwt_required()
