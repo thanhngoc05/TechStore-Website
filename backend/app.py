@@ -1823,7 +1823,8 @@ def create_order():
             app.logger.exception("BE2 create_order failed")
         except Exception:
             pass
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.error('Order creation failed (%s)', type(e).__name__)
+        return jsonify({"msg": "Không thể tạo đơn hàng. Vui lòng thử lại."}), 500
 
 @app.route('/api/orders/me', methods=['GET'])
 @jwt_required()
@@ -2013,7 +2014,8 @@ def cancel_my_order(order_code):
         }), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.error('Customer cancellation failed (%s)', type(e).__name__)
+        return jsonify({"msg": "Không thể hủy đơn hàng. Vui lòng thử lại."}), 500
 
 @app.route('/api/payment/create', methods=['POST'])
 @jwt_required()
@@ -2506,7 +2508,8 @@ def delete_product(id):
         return jsonify({"msg": "Đã xóa sản phẩm và các bình luận liên quan!"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.error('Product deletion failed (%s)', type(e).__name__)
+        return jsonify({"msg": "Không thể xóa sản phẩm. Vui lòng thử lại."}), 500
 
 @app.route('/admin/products', methods=['GET'])
 @jwt_required()
@@ -2977,7 +2980,8 @@ def admin_delete_order(order_code):
         return jsonify({"msg": "OK"}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.error('Order deletion failed (%s)', type(e).__name__)
+        return jsonify({"msg": "Không thể xóa đơn hàng. Vui lòng thử lại."}), 500
 
 @app.route('/api/orders/<string:order_code>/invoice.pdf', methods=['GET'])
 @jwt_required()
@@ -3259,7 +3263,8 @@ def admin_update_order_status(order_code):
         return jsonify({"msg": "OK", "status": new_status, "email_sent": email_sent, "email_error": email_error}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({"msg": "Lỗi hệ thống: " + str(e)}), 500
+        app.logger.error('Order status update failed (%s)', type(e).__name__)
+        return jsonify({"msg": "Không thể cập nhật đơn hàng. Vui lòng thử lại."}), 500
 
 @app.route('/api/forgot-password', methods=['POST'])
 def forgot_password():

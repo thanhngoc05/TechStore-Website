@@ -223,6 +223,18 @@ class BackendTests(unittest.TestCase):
             response = self.client.put(url, headers=self.headers, json={'status': status})
             self.assertEqual(response.status_code, 200, response.json)
 
+    def test_failed_order_update_rolls_back_without_exposing_exception(self):
+        code = self.order().json['order_code']
+        self.make_admin()
+        with patch.object(backend, '_restock_order_items', side_effect=RuntimeError('private driver detail')):
+            response = self.client.put(f'/admin/orders/{code}/status', headers=self.headers,
+                                       json={'status': 'cancelled'})
+        self.assertEqual(response.status_code, 500)
+        self.assertNotIn('private driver detail', response.get_data(as_text=True))
+        self.assertEqual(self.client.get(f'/admin/orders/{code}', headers=self.headers).json['status'], 'processing')
+        with backend.app.app_context():
+            self.assertEqual(backend.db.session.get(backend.Product, 1).stock, 3)
+
     def test_admin_status_is_persisted(self):
         code = self.order().json['order_code']
         with backend.app.app_context():
