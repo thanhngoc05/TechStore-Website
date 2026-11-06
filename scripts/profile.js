@@ -4,6 +4,12 @@
     return path;
   }
 
+  function returnToLogin(message) {
+    clearStorefrontSession();
+    alert(message);
+    window.location.href = "login.html";
+  }
+
   function getToken() {
     const token = localStorage.getItem("token");
     if (!token) {
@@ -31,13 +37,8 @@
         },
       });
 
-      if (res.status === 401) {
-        alert("Phiên đăng nhập hết hạn!");
-        try {
-          window.location.href = "/login.html";
-        } catch {
-          window.location.href = "login.html";
-        }
+      if (res.status === 401 || res.status === 403 || res.status === 422) {
+        returnToLogin("Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.");
         return;
       }
 
@@ -119,13 +120,15 @@
         body: JSON.stringify(body),
       });
 
+      if (res.status === 401 || res.status === 403 || res.status === 422) {
+        returnToLogin("Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.");
+        return;
+      }
       const result = await res.json().catch(() => ({}));
 
       if (res.ok) {
         if (result.password_changed) {
-          localStorage.removeItem("token");
-          alert("Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.");
-          window.location.href = "login.html";
+          returnToLogin("Đã đổi mật khẩu. Vui lòng đăng nhập lại bằng mật khẩu mới.");
           return;
         }
         alert("Cập nhật thông tin thành công!");
